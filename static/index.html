@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Root Cause Analysis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #f4f7f0;
+      --bg2:       #eaf0e4;
+      --bg3:       #dde8d5;
+      --border:    #c5d8b8;
+      --border2:   #8db87a;
+      --text:      #1e2d17;
+      --text2:     #3d5c2e;
+      --text3:     #6b8f5a;
+      --green:     #3a7a28;
+      --green2:    #5a8a46;
+      --accent:    #2a5c1a;
+      --yellow:    #8a6a10;
+      --red:       #8a3a2a;
+      --dim:       rgba(90,138,70,0.08);
+    }
+    :root.dark {
+      --bg:        #0d1109;
+      --bg2:       #141a10;
+      --bg3:       #1c2417;
+      --border:    #2a3822;
+      --border2:   #3d5430;
+      --text:      #c8d5b9;
+      --text2:     #7a9068;
+      --text3:     #4a5e3a;
+      --green:     #8db87a;
+      --green2:    #5a8a46;
+      --accent:    #b5d99c;
+      --yellow:    #d4b96a;
+      --red:       #c47a6a;
+      --dim:       rgba(141,184,122,0.07);
+    }
+    .theme-toggle {
+      background: transparent;
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      font-size: 14px;
+      width: 30px; height: 30px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      padding: 0;
+    }
+    .theme-toggle:hover { background: var(--dim); color: var(--accent); }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      min-height: 100vh;
+    }
+
+    /* ── layout ── */
+    .shell {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      grid-template-rows: 52px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ── topbar ── */
+    .topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+    }
+    .topbar-logo {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .topbar-logo .wordmark {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.02em;
+    }
+    .topbar-logo .sub {
+      font-size: 10px;
+      color: var(--text3);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    #clock {
+      color: var(--text3);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+    }
+
+    /* ── sidebar ── */
+    .sidebar {
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .nav-section {
+      padding: 12px 18px 4px;
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text3);
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 18px;
+      color: var(--text2);
+      text-decoration: none;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .nav-item:hover, .nav-item.active {
+      color: var(--accent);
+      background: var(--dim);
+      border-left-color: var(--green2);
+    }
+    .nav-item .icon { font-size: 14px; width: 18px; text-align: center; }
+
+    /* ── main ── */
+    .main {
+      padding: 28px 32px;
+      overflow-y: auto;
+      background: var(--bg);
+    }
+
+    /* ── page header ── */
+    .page-header {
+      margin-bottom: 28px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+    .page-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 26px;
+      font-weight: 400;
+      color: var(--accent);
+      line-height: 1.1;
+    }
+    .page-title em {
+      font-style: italic;
+      color: var(--green);
+    }
+    .page-subtitle {
+      font-size: 11px;
+      color: var(--text3);
+      margin-top: 4px;
+      letter-spacing: 0.05em;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      background: transparent;
+      border: 1px solid var(--border2);
+      color: var(--green);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      border-radius: 4px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .btn:hover { background: var(--dim); border-color: var(--green); color: var(--accent); }
+    .btn-primary { background: var(--green2); border-color: var(--green); color: var(--bg); }
+    .btn-primary:hover { background: var(--green); }
+
+    /* ── stat row ── */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--green2);
+    }
+    .stat-card.warn::before { background: var(--yellow); }
+    .stat-card.danger::before { background: var(--red); }
+    .stat-label {
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-family: 'Playfair Display', serif;
+      font-size: 32px;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .stat-sub {
+      font-size: 10px;
+      color: var(--text3);
+      margin-top: 4px;
+    }
+
+    /* ── grid ── */
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .content-grid .full { grid-column: 1 / -1; }
+
+    /* ── panel ── */
+    .panel {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-title {
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text2);
+    }
+    .panel-body { padding: 0; }
+
+    /* ── table ── */
+    .tbl { width: 100%; border-collapse: collapse; }
+    .tbl th {
+      text-align: left;
+      padding: 8px 18px;
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text3);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg3);
+    }
+    .tbl td {
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--dim); }
+
+    /* ── badges / chips ── */
+    .chip {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 500;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text2);
+    }
+    .chip.overdue  { background: rgba(196,122,106,0.15); border-color: var(--red);    color: var(--red); }
+    .chip.due-soon { background: rgba(212,185,106,0.15); border-color: var(--yellow); color: var(--yellow); }
+    .chip.ok       { background: rgba(90,138,70,0.15);   border-color: var(--green2); color: var(--green); }
+
+    /* ── water btn ── */
+    .water-btn {
+      background: transparent;
+      border: 1px solid var(--border2);
+      color: var(--green2);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      padding: 3px 9px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .water-btn:hover { background: var(--green2); color: var(--bg); border-color: var(--green2); }
+
+    /* ── journal list ── */
+    .journal-entry {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .journal-entry:last-child { border-bottom: none; }
+    .journal-entry:hover { background: var(--dim); }
+    .je-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .je-date { font-size: 10px; color: var(--text3); }
+    .je-tag {
+      font-size: 9px;
+      padding: 1px 6px;
+      border-radius: 2px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text3);
+    }
+    .je-title { color: var(--text); margin-bottom: 3px; }
+    .je-body { color: var(--text2); font-size: 11px; line-height: 1.55; }
+
+    /* ── empty state ── */
+    .empty {
+      padding: 36px 18px;
+      text-align: center;
+      color: var(--text3);
+      font-size: 11px;
+    }
+
+    /* ── loading ── */
+    .loading { color: var(--text3); font-size: 11px; padding: 20px 18px; }
+
+    /* ── toast ── */
+    #toast {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      background: var(--bg3);
+      border: 1px solid var(--green2);
+      color: var(--green);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      padding: 10px 18px;
+      border-radius: 5px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.2s;
+      pointer-events: none;
+      z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ── seed form ── */
+    .seed-form-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      padding: 18px;
+    }
+    .sf-group { display: flex; flex-direction: column; gap: 5px; }
+    .sf-group label { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); }
+    .sf-group input, .sf-group select {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      padding: 7px 10px;
+      border-radius: 4px;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+    .sf-group input:focus, .sf-group select:focus { border-color: var(--green); }
+    .sf-full { grid-column: 1 / -1; }
+    .btn-danger { border-color: var(--red); color: var(--red); }
+    .btn-danger:hover { background: rgba(138,58,42,0.1); }
+    .btn-sm { padding: 4px 10px; font-size: 10px; }
+
+    @media (max-width: 900px) {
+      .stat-row { grid-template-columns: repeat(2, 1fr); }
+      .content-grid { grid-template-columns: 1fr; }
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .seed-form-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- topbar -->
+  <header class="topbar">
+    <div class="topbar-logo">
+      <span class="wordmark">🌱 Root Cause Analysis</span>
+      <span class="sub">garden tracker</span>
+    </div>
+    <div class="topbar-right">
+      <span id="clock"></span>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode" id="theme-btn">🌙</button>
+      <a class="btn" href="/manage">Manage →</a>
+    </div>
+  </header>
+
+  <!-- sidebar -->
+  <nav class="sidebar">
+    <div class="nav-section">Views</div>
+    <a class="nav-item active" onclick="showView('dashboard')"><span class="icon">⊞</span> Dashboard</a>
+    <a class="nav-item" onclick="showView('seeds')"><span class="icon">🫘</span> Seed inventory</a>
+  </nav>
+
+  <!-- main -->
+  <main class="main" id="main-content">
+    <!-- views injected here -->
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ── theme ──
+  (function() {
+    const saved = localStorage.getItem('rca-theme');
+    if (saved === 'dark') document.documentElement.classList.add('dark');
+  })();
+  function toggleTheme() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('rca-theme', isDark ? 'dark' : 'light');
+    document.getElementById('theme-btn').textContent = isDark ? '☀️' : '🌙';
+  }
+  // set initial icon
+  document.addEventListener('DOMContentLoaded', () => {
+    const isDark = document.documentElement.classList.contains('dark');
+    document.getElementById('theme-btn').textContent = isDark ? '☀️' : '🌙';
+  });
+
+  // ── clock ──
+  const clockEl = document.getElementById('clock');
+  function tick() {
+    const d = new Date();
+    clockEl.textContent = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'})
+      + '  ' + d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+  }
+  tick(); setInterval(tick, 10000);
+
+  // ── toast ──
+  function toast(msg, isErr) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.borderColor = isErr ? 'var(--red)' : 'var(--green2)';
+    t.style.color = isErr ? 'var(--red)' : 'var(--green)';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  // ── API helpers ──
+  async function api(path, opts) {
+    try {
+      const r = await fetch(path, opts);
+      if (!r.ok) throw new Error(await r.text());
+      if (r.status === 204) return null;
+      return r.json();
+    } catch(e) {
+      toast('Error: ' + e.message, true);
+      throw e;
+    }
+  }
+
+  // ── nav ──
+  let currentView = 'dashboard';
+  function showView(v) {
+    currentView = v;
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(el => {
+      if (el.getAttribute('onclick')?.includes(`'${v}'`)) el.classList.add('active');
+    });
+    const views = {
+      dashboard: renderDashboard,
+      seeds:     renderSeeds,
+    };
+    (views[v] || renderDashboard)();
+  }
+
+  // ── helpers ──
+  function fmtDate(s) {
+    if (!s) return '—';
+    return new Date(s).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  }
+  function daysUntil(s) {
+    if (!s) return null;
+    const diff = new Date(s) - new Date();
+    return Math.round(diff / 86400000);
+  }
+  function dueBadge(next_due) {
+    const d = daysUntil(next_due);
+    if (d === null) return '<span class="chip">—</span>';
+    if (d < 0)  return `<span class="chip overdue">overdue ${Math.abs(d)}d</span>`;
+    if (d <= 2) return `<span class="chip due-soon">due in ${d}d</span>`;
+    return `<span class="chip ok">in ${d}d</span>`;
+  }
+
+  // ════════════════════════════════
+  // DASHBOARD
+  // ════════════════════════════════
+  async function renderDashboard() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = '<div class="loading">Loading…</div>';
+
+    const [plants, schedules, waterings, journal] = await Promise.all([
+      api('/api/plants'),
+      api('/api/schedules'),
+      api('/api/waterings'),
+      api('/api/journal'),
+    ]);
+
+    const overdue   = schedules.filter(s => daysUntil(s.next_due) < 0);
+    const dueSoon   = schedules.filter(s => { const d = daysUntil(s.next_due); return d !== null && d >= 0 && d <= 2; });
+    const scheduled = schedules.length;
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <div class="page-title">Good ${greeting()}, <em>gardener</em></div>
+          <div class="page-subtitle">${new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'})}</div>
+        </div>
+        <a class="btn btn-primary" href="/manage">+ Add plant</a>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-label">Total plants</div>
+          <div class="stat-value">${plants.length}</div>
+          <div class="stat-sub">${scheduled} on schedule</div>
+        </div>
+        <div class="stat-card ${overdue.length ? 'danger' : ''}">
+          <div class="stat-label">Overdue</div>
+          <div class="stat-value" style="color:${overdue.length ? 'var(--red)' : 'var(--accent)'}">${overdue.length}</div>
+          <div class="stat-sub">need water now</div>
+        </div>
+        <div class="stat-card ${dueSoon.length ? 'warn' : ''}">
+          <div class="stat-label">Due soon</div>
+          <div class="stat-value" style="color:${dueSoon.length ? 'var(--yellow)' : 'var(--accent)'}">${dueSoon.length}</div>
+          <div class="stat-sub">within 2 days</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Journal entries</div>
+          <div class="stat-value">${journal.length}</div>
+          <div class="stat-sub">${waterings.length} waterings logged</div>
+        </div>
+      </div>
+
+      <div class="content-grid">
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">⏱ Upcoming waterings</span>
+            <a class="btn" onclick="showView('schedule')">View all</a>
+          </div>
+          <div class="panel-body">
+            ${schedules.length === 0 ? '<div class="empty">No schedules yet</div>' : `
+            <table class="tbl">
+              <thead><tr>
+                <th>Plant</th><th>Last watered</th><th>Status</th><th></th>
+              </tr></thead>
+              <tbody>
+                ${schedules.slice(0,8).map(s => `
+                <tr>
+                  <td>${s.plant_name}</td>
+                  <td>${fmtDate(s.last_watered)}</td>
+                  <td>${dueBadge(s.next_due)}</td>
+                  <td><button class="water-btn" onclick="logWatering(${s.plant_id}, '${s.plant_name}')">Water</button></td>
+                </tr>`).join('')}
+              </tbody>
+            </table>`}
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">📓 Recent journal</span>
+            <a class="btn" onclick="showView('journal')">View all</a>
+          </div>
+          <div class="panel-body">
+            ${journal.length === 0 ? '<div class="empty">No entries yet</div>' :
+              journal.slice(0,5).map(e => `
+                <div class="journal-entry">
+                  <div class="je-meta">
+                    <span class="je-date">${fmtDate(e.created)}</span>
+                    ${e.tags ? e.tags.split(',').map(t => `<span class="je-tag">${t.trim()}</span>`).join('') : ''}
+                  </div>
+                  ${e.title ? `<div class="je-title">${e.title}</div>` : ''}
+                  <div class="je-body">${e.body.slice(0, 120)}${e.body.length > 120 ? '…' : ''}</div>
+                </div>`).join('')
+            }
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function greeting() {
+    const h = new Date().getHours();
+    if (h < 12) return 'morning';
+    if (h < 17) return 'afternoon';
+    return 'evening';
+  }
+
+  async function logWatering(plant_id, name) {
+    await api('/api/waterings', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({plant_id})
+    });
+    toast(`💧 Watered ${name}`);
+    if (currentView === 'dashboard') renderDashboard();
+    if (currentView === 'schedule')  renderSchedule();
+  }
+
+  // ════════════════════════════════
+  // SEED INVENTORY
+  // ════════════════════════════════
+  // Stored locally until the API endpoint exists.
+  // Fields: id, name, variety, category, source, year, qty, qty_unit, germRate, daysToGerm, notes, added
+  const SEED_KEY = 'rca-seeds';
+
+  function loadSeeds() {
+    try { return JSON.parse(localStorage.getItem(SEED_KEY)) || []; }
+    catch { return []; }
+  }
+  function saveSeeds(seeds) {
+    localStorage.setItem(SEED_KEY, JSON.stringify(seeds));
+  }
+  function nextId(seeds) {
+    return seeds.length ? Math.max(...seeds.map(s => s.id)) + 1 : 1;
+  }
+
+  const CATEGORIES = ['Vegetable', 'Herb', 'Flower', 'Fruit', 'Cover crop', 'Other'];
+  const QTY_UNITS  = ['seeds', 'g', 'oz', 'packet'];
+
+  function renderSeeds() {
+    const seeds = loadSeeds();
+    const main  = document.getElementById('main-content');
+
+    // group by category for display
+    const byCategory = {};
+    seeds.forEach(s => {
+      const cat = s.category || 'Other';
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(s);
+    });
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <div class="page-title">Seed inventory</div>
+          <div class="page-subtitle">${seeds.length} packet${seeds.length !== 1 ? 's' : ''} across ${Object.keys(byCategory).length} categories</div>
+        </div>
+        <button class="btn btn-primary" onclick="openSeedForm()">+ Add seeds</button>
+      </div>
+
+      <!-- add / edit form (hidden by default) -->
+      <div class="panel" id="seed-form-panel" style="display:none;margin-bottom:20px">
+        <div class="panel-head">
+          <span class="panel-title" id="seed-form-title">Add seeds</span>
+          <button class="btn btn-sm" onclick="closeSeedForm()">✕</button>
+        </div>
+        <div class="seed-form-grid">
+          <div class="sf-group">
+            <label>Name *</label>
+            <input id="sf-name" placeholder="e.g. Tomato">
+          </div>
+          <div class="sf-group">
+            <label>Variety</label>
+            <input id="sf-variety" placeholder="e.g. Brandywine">
+          </div>
+          <div class="sf-group">
+            <label>Category</label>
+            <select id="sf-category">
+              ${CATEGORIES.map(c => `<option>${c}</option>`).join('')}
+            </select>
+          </div>
+          <div class="sf-group">
+            <label>Source / brand</label>
+            <input id="sf-source" placeholder="e.g. Baker Creek">
+          </div>
+          <div class="sf-group">
+            <label>Year packaged</label>
+            <input id="sf-year" type="number" placeholder="${new Date().getFullYear()}" min="2000" max="2099">
+          </div>
+          <div class="sf-group sf-qty-row">
+            <label>Quantity</label>
+            <div style="display:flex;gap:6px">
+              <input id="sf-qty" type="number" step="any" min="0" placeholder="0" style="flex:1">
+              <select id="sf-qty-unit" style="width:80px">
+                ${QTY_UNITS.map(u => `<option>${u}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="sf-group">
+            <label>Germ. rate %</label>
+            <input id="sf-germ" type="number" min="0" max="100" placeholder="e.g. 85">
+          </div>
+          <div class="sf-group">
+            <label>Days to germinate</label>
+            <input id="sf-dtg" type="number" min="1" placeholder="e.g. 7">
+          </div>
+          <div class="sf-group sf-full">
+            <label>Notes</label>
+            <input id="sf-notes" placeholder="Storage location, special instructions…">
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;padding:0 18px 18px">
+          <button class="btn btn-primary" onclick="submitSeedForm()">Save</button>
+          <button class="btn" onclick="closeSeedForm()">Cancel</button>
+        </div>
+      </div>
+
+      <!-- inventory table -->
+      <div id="seed-list">
+        ${seeds.length === 0
+          ? `<div class="panel"><div class="empty">No seeds yet — click "Add seeds" to get started</div></div>`
+          : Object.entries(byCategory).map(([cat, items]) => `
+            <div class="panel" style="margin-bottom:16px">
+              <div class="panel-head">
+                <span class="panel-title">${cat}</span>
+                <span style="font-size:10px;color:var(--text3)">${items.length} variety${items.length !== 1 ? 'ies' : ''}</span>
+              </div>
+              <table class="tbl">
+                <thead><tr>
+                  <th>Name</th><th>Variety</th><th>Source</th><th>Year</th>
+                  <th>Qty</th><th>Germ %</th><th>DTG</th><th>Notes</th><th></th>
+                </tr></thead>
+                <tbody>
+                  ${items.map(s => `<tr>
+                    <td style="font-weight:500">${s.name}</td>
+                    <td style="color:var(--text2)">${s.variety || '—'}</td>
+                    <td style="color:var(--text3)">${s.source || '—'}</td>
+                    <td style="color:var(--text3)">${s.year || '—'}</td>
+                    <td>${s.qty != null ? `${s.qty} ${s.qty_unit || ''}` : '—'}</td>
+                    <td>${seedGermBadge(s.germRate)}</td>
+                    <td style="color:var(--text3)">${s.daysToGerm ? s.daysToGerm + 'd' : '—'}</td>
+                    <td style="color:var(--text2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.notes || ''}</td>
+                    <td>
+                      <div style="display:flex;gap:6px">
+                        <button class="btn btn-sm" onclick="editSeed(${s.id})">Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteSeed(${s.id})">Del</button>
+                      </div>
+                    </td>
+                  </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>`).join('')
+        }
+      </div>`;
+  }
+
+  function seedGermBadge(rate) {
+    if (rate == null || rate === '') return '<span style="color:var(--text3)">—</span>';
+    const n = parseInt(rate);
+    const color = n >= 80 ? 'var(--green)' : n >= 50 ? 'var(--yellow)' : 'var(--red)';
+    return `<span style="color:${color}">${n}%</span>`;
+  }
+
+  let _editingId = null;
+
+  function openSeedForm(id) {
+    _editingId = id || null;
+    const panel = document.getElementById('seed-form-panel');
+    panel.style.display = '';
+    document.getElementById('seed-form-title').textContent = id ? 'Edit seed' : 'Add seeds';
+
+    // clear
+    ['sf-name','sf-variety','sf-source','sf-year','sf-qty','sf-germ','sf-dtg','sf-notes'].forEach(i => {
+      document.getElementById(i).value = '';
+    });
+    document.getElementById('sf-category').value = 'Vegetable';
+    document.getElementById('sf-qty-unit').value = 'seeds';
+
+    if (id) {
+      const s = loadSeeds().find(x => x.id === id);
+      if (s) {
+        document.getElementById('sf-name').value     = s.name || '';
+        document.getElementById('sf-variety').value  = s.variety || '';
+        document.getElementById('sf-category').value = s.category || 'Vegetable';
+        document.getElementById('sf-source').value   = s.source || '';
+        document.getElementById('sf-year').value     = s.year || '';
+        document.getElementById('sf-qty').value      = s.qty ?? '';
+        document.getElementById('sf-qty-unit').value = s.qty_unit || 'seeds';
+        document.getElementById('sf-germ').value     = s.germRate ?? '';
+        document.getElementById('sf-dtg').value      = s.daysToGerm ?? '';
+        document.getElementById('sf-notes').value    = s.notes || '';
+      }
+    }
+    panel.scrollIntoView({behavior:'smooth', block:'start'});
+    document.getElementById('sf-name').focus();
+  }
+
+  function closeSeedForm() {
+    document.getElementById('seed-form-panel').style.display = 'none';
+    _editingId = null;
+  }
+
+  function submitSeedForm() {
+    const name = document.getElementById('sf-name').value.trim();
+    if (!name) { toast('Name is required', true); return; }
+
+    const seeds = loadSeeds();
+    const entry = {
+      id:         _editingId || nextId(seeds),
+      name,
+      variety:    document.getElementById('sf-variety').value.trim() || null,
+      category:   document.getElementById('sf-category').value,
+      source:     document.getElementById('sf-source').value.trim() || null,
+      year:       parseInt(document.getElementById('sf-year').value) || null,
+      qty:        parseFloat(document.getElementById('sf-qty').value) ?? null,
+      qty_unit:   document.getElementById('sf-qty-unit').value,
+      germRate:   parseInt(document.getElementById('sf-germ').value) || null,
+      daysToGerm: parseInt(document.getElementById('sf-dtg').value) || null,
+      notes:      document.getElementById('sf-notes').value.trim() || null,
+      added:      _editingId ? (seeds.find(s=>s.id===_editingId)?.added || new Date().toISOString()) : new Date().toISOString(),
+    };
+
+    if (_editingId) {
+      const idx = seeds.findIndex(s => s.id === _editingId);
+      seeds[idx] = entry;
+      toast('Seed updated');
+    } else {
+      seeds.push(entry);
+      toast('Seed added');
+    }
+    saveSeeds(seeds);
+    closeSeedForm();
+    renderSeeds();
+  }
+
+  function editSeed(id) { openSeedForm(id); }
+
+  function deleteSeed(id) {
+    const seeds = loadSeeds();
+    const s = seeds.find(x => x.id === id);
+    if (!s) return;
+    if (!window.confirm(`Delete "${s.name}${s.variety ? ' ('+s.variety+')' : ''}"?`)) return;
+    saveSeeds(seeds.filter(x => x.id !== id));
+    toast('Seed removed');
+    renderSeeds();
+  }
+
+  // ── init ──
+  renderDashboard();
+</script>
+
+    const main = document.getElementById('main-content');
+    main.innerHTML = '<div class="loading">Loading…</div>';
+    const plants = await api('/api/plants');
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <div class="page-title">Plants</div>
+          <div class="page-subtitle">${plants.length} total</div>
+        </div>
+        <a class="btn" href="/manage">Manage →</a>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+        ${plants.length === 0 ? '<div class="empty">No plants yet — add some in Manage</div>' : `
+          <table class="tbl">
+            <thead><tr>
+              <th>Name</th><th>Variety</th><th>Location</th><th>Planted</th><th>Notes</th>
+            </tr></thead>
+            <tbody>
+              ${plants.map(p => `
+              <tr>
+                <td>${p.name}</td>
+                <td>${p.variety || '<span style="color:var(--text3)">—</span>'}</td>
+                <td>${p.bed_id ? `Bed #${p.bed_id} [${p.row},${p.col}]` : p.container_id ? `Container #${p.container_id}` : '<span style="color:var(--text3)">—</span>'}</td>
+                <td>${fmtDate(p.planted)}</td>
+                <td style="color:var(--text2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.notes || ''}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>`}
+        </div>
+      </div>`;
+  }
+
+  // ════════════════════════════════
+  // SCHEDULE
+  // ════════════════════════════════
+  async function renderSchedule() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = '<div class="loading">Loading…</div>';
+    const schedules = await api('/api/schedules');
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <div class="page-title">Watering schedule</div>
+          <div class="page-subtitle">${schedules.length} plants scheduled</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+        ${schedules.length === 0 ? '<div class="empty">No schedules — add them in Manage</div>' : `
+          <table class="tbl">
+            <thead><tr>
+              <th>Plant</th><th>Every</th><th>Last watered</th><th>Next due</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody>
+              ${schedules.map(s => `
+              <tr>
+                <td>${s.plant_name}</td>
+                <td>${s.interval_days}d</td>
+                <td>${fmtDate(s.last_watered)}</td>
+                <td>${fmtDate(s.next_due)}</td>
+                <td>${dueBadge(s.next_due)}</td>
+                <td><button class="water-btn" onclick="logWatering(${s.plant_id}, '${s.plant_name}')">Water now</button></td>
+              </tr>`).join('')}
+            </tbody>
+          </table>`}
+        </div>
+      </div>`;
+  }
+
+  // ════════════════════════════════
+  // JOURNAL
+  // ════════════════════════════════
+  async function renderJournal() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = '<div class="loading">Loading…</div>';
+    const entries = await api('/api/journal');
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <div class="page-title">Journal</div>
+          <div class="page-subtitle">${entries.length} entries</div>
+        </div>
+        <button class="btn btn-primary" onclick="newJournalEntry()">+ New entry</button>
+      </div>
+      <div class="panel" id="journal-list">
+        <div class="panel-body">
+        ${entries.length === 0 ? '<div class="empty">No entries yet</div>' :
+          entries.map(e => `
+          <div class="journal-entry">
+            <div class="je-meta">
+              <span class="je-date">${fmtDate(e.created)}</span>
+              ${e.tags ? e.tags.split(',').map(t=>`<span class="je-tag">${t.trim()}</span>`).join('') : ''}
+            </div>
+            ${e.title ? `<div class="je-title" style="font-weight:500;margin-bottom:4px">${e.title}</div>` : ''}
+            <div class="je-body">${e.body}</div>
+          </div>`).join('')
+        }
+        </div>
+      </div>`;
+  }
+
+  function newJournalEntry() {
+    const main = document.getElementById('main-content');
+    const form = document.createElement('div');
+    form.className = 'panel';
+    form.style.marginTop = '20px';
+    form.innerHTML = `
+      <div class="panel-head"><span class="panel-title">New journal entry</span></div>
+      <div style="padding:18px;display:flex;flex-direction:column;gap:12px">
+        <input id="je-title" placeholder="Title (optional)" style="${inputStyle}">
+        <textarea id="je-body" placeholder="What happened in the garden today?" rows="5" style="${inputStyle};resize:vertical"></textarea>
+        <input id="je-tags" placeholder="Tags (comma-separated)" style="${inputStyle}">
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-primary" onclick="submitJournalEntry()">Save entry</button>
+          <button class="btn" onclick="renderJournal()">Cancel</button>
+        </div>
+      </div>`;
+    main.appendChild(form);
+    form.querySelector('#je-body').focus();
+  }
+
+  const inputStyle = 'background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:"DM Mono",monospace;font-size:12px;padding:8px 12px;border-radius:4px;outline:none;width:100%';
+
+  async function submitJournalEntry() {
+    const title = document.getElementById('je-title').value;
+    const body  = document.getElementById('je-body').value;
+    const tags  = document.getElementById('je-tags').value;
+    if (!body.trim()) { toast('Body is required', true); return; }
+    await api('/api/journal', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({title: title || null, body, tags: tags || null})
+    });
+    toast('Journal entry saved');
+    renderJournal();
+  }
+
+  // ════════════════════════════════
+  // ZONES
+  // ════════════════════════════════
+  async function renderZones() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = '<div class="loading">Loading…</div>';
+    const zones = await api('/api/zones');
+    main.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">Zones</div><div class="page-subtitle">${zones.length} zones</div></div>
+        <a class="btn" href="/manage">Manage →</a>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+        ${zones.length === 0 ? '<div class="empty">No zones yet</div>' : `
+          <table class="tbl">
+            <thead><tr><th>Name</th><th>Notes</th><th>Created</th></tr></thead>
+            <tbody>${zones.map(z => `<tr><td>${z.name}</td><td style="color:var(--text2)">${z.notes||''}</td><td>${fmtDate(z.created)}</td></tr>`).join('')}</tbody>
+          </table>`}
+        </div>
+      </div>`;
+  }
+
+  // ════════════════════════════════
+  // BEDS
+  // ════════════════════════════════
+  async function renderBeds() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = '<div class="loading">Loading…</div>';
+    const beds = await api('/api/beds');
+    main.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">Beds</div><div class="page-subtitle">${beds.length} beds</div></div>
+        <a class="btn" href="/manage">Manage →</a>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+        ${beds.length === 0 ? '<div class="empty">No beds yet</div>' : `
+          <table class="tbl">
+            <thead><tr><th>Name</th><th>Zone</th><th>Grid</th><th>Notes</th></tr></thead>
+            <tbody>${beds.map(b => `<tr>
+              <td><a style="color:var(--green);cursor:pointer" onclick="renderBedGrid(${b.id},'${b.name}')">${b.name}</a></td>
+              <td>${b.zone_name||'—'}</td>
+              <td style="color:var(--text3)">${b.rows}×${b.cols}</td>
+              <td style="color:var(--text2)">${b.notes||''}</td>
+            </tr>`).join('')}</tbody>
+          </table>`}
+        </div>
+      </div>`;
+  }
+
+  async function renderBedGrid(id, name) {
+    const {bed, grid} = await api(`/api/beds/${id}/grid`);
+    const cells = [];
+    for (let r = 0; r < bed.rows; r++) {
+      for (let c = 0; c < bed.cols; c++) {
+        const plant = grid[`${r},${c}`];
+        cells.push(`<div style="background:${plant?'var(--bg3)':'var(--bg)'};border:1px solid var(--border${plant?'2':''});border-radius:4px;padding:6px;min-height:52px;font-size:10px;color:${plant?'var(--text)':'var(--text3)'};text-align:center;display:flex;align-items:center;justify-content:center">
+          ${plant ? `<div><div>${plant.name}</div>${plant.variety?`<div style="color:var(--text3)">${plant.variety}</div>`:''}</div>` : `<span style="font-size:9px">${r},${c}</span>`}
+        </div>`);
+      }
+    }
+    const main = document.getElementById('main-content');
+    const existing = document.getElementById('bed-grid-panel');
+    if (existing) existing.remove();
+    const panel = document.createElement('div');
+    panel.id = 'bed-grid-panel';
+    panel.className = 'panel';
+    panel.style.marginTop = '20px';
+    panel.innerHTML = `
+      <div class="panel-head"><span class="panel-title">Bed: ${name} (${bed.rows}×${bed.cols})</span><button class="btn" onclick="this.closest('.panel').remove()">✕</button></div>
+      <div style="padding:16px;display:grid;grid-template-columns:repeat(${bed.cols},1fr);gap:6px">${cells.join('')}</div>`;
+    main.appendChild(panel);
+  }
+
+  // ════════════════════════════════
+  // CONTAINERS
+  // ════════════════════════════════
+  async function renderContainers() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = '<div class="loading">Loading…</div>';
+    const containers = await api('/api/containers');
+    main.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">Containers</div><div class="page-subtitle">${containers.length} containers</div></div>
+        <a class="btn" href="/manage">Manage →</a>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+        ${containers.length === 0 ? '<div class="empty">No containers yet</div>' : `
+          <table class="tbl">
+            <thead><tr><th>Name</th><th>Type</th><th>Size (gal)</th><th>Notes</th></tr></thead>
+            <tbody>${containers.map(c => `<tr>
+              <td>${c.name}</td>
+              <td>${c.type||'—'}</td>
+              <td>${c.size_gallons||'—'}</td>
+              <td style="color:var(--text2)">${c.notes||''}</td>
+            </tr>`).join('')}</tbody>
+          </table>`}
+        </div>
+      </div>`;
+  }
+
+  // ── init ──
+  renderDashboard();
+</script>
+</body>
+</html>

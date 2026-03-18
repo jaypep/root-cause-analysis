@@ -50,8 +50,18 @@ def init_db():
             created       TEXT DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS crops (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            name             TEXT NOT NULL,
+            variety          TEXT,
+            days_to_harvest  INTEGER,
+            notes            TEXT,
+            created          TEXT DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS plants (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            crop_id       INTEGER REFERENCES crops(id) ON DELETE RESTRICT,
             name          TEXT NOT NULL,
             variety       TEXT,
             bed_id        INTEGER REFERENCES beds(id) ON DELETE SET NULL,
@@ -113,9 +123,16 @@ class ContainerIn(BaseModel):
     size_gallons: Optional[float] = None
     notes: Optional[str] = None
 
+class CropIn(BaseModel):
+    name: str
+    variety: Optional[str] = None
+    days_to_harvest: Optional[int] = None
+    notes: Optional[str] = None
+
 class PlantIn(BaseModel):
     name: str
     variety: Optional[str] = None
+    crop_id: Optional[int] = None
     bed_id: Optional[int] = None
     row: Optional[int] = None
     col: Optional[int] = None
@@ -296,6 +313,76 @@ def delete_container(container_id: int):
     conn.close()
 
 # ---------------------------------------------------------------------------
+# Crops
+# ---------------------------------------------------------------------------
+
+@app.get("/api/crops")
+def list_crops():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM crops ORDER BY name").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.post("/api/crops", status_code=201)
+def create_crop(crop: CropIn):
+    conn = get_db()
+    cur = conn.execute(
+        "INSERT INTO crops (name, variety, days_to_harvest, notes) VALUES (?,?,?,?)",
+        (crop.name, crop.variety, crop.days_to_harvest, crop.notes)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM crops WHERE id=?", (cur.lastrowid,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.put("/api/crops/{crop_id}")
+def update_crop(crop_id: int, crop: CropIn):
+    conn = get_db()
+    conn.execute(
+        "UPDATE crops SET name=?, variety=?, days_to_harvest=?, notes=? WHERE id=?",
+        (crop.name, crop.variety, crop.days_to_harvest, crop.notes, crop_id)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM crops WHERE id=?", (crop_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Crop not found")
+    return dict(row)
+
+@app.delete("/api/crops/{crop_id}", status_code=204)
+def delete_crop(crop_id: int):
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM crops WHERE id=?", (crop_id,))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        raise HTTPException(status_code=409, detail="Crop is referenced by one or more plants")
+    conn.close()
+
+@app.post("/api/crops/bulk", status_code=201)
+def bulk_import_crops(crops: list[CropIn]):
+    conn = get_db()
+    created = 0
+    skipped = 0
+    for crop in crops:
+        existing = conn.execute(
+            "SELECT id FROM crops WHERE name=? AND (variety=? OR (variety IS NULL AND ? IS NULL))",
+            (crop.name, crop.variety, crop.variety)
+        ).fetchone()
+        if existing:
+            skipped += 1
+        else:
+            conn.execute(
+                "INSERT INTO crops (name, variety, days_to_harvest, notes) VALUES (?,?,?,?)",
+                (crop.name, crop.variety, crop.days_to_harvest, crop.notes)
+            )
+            created += 1
+    conn.commit()
+    conn.close()
+    return {"created": created, "skipped": skipped}
+
+# ---------------------------------------------------------------------------
 # Plants
 # ---------------------------------------------------------------------------
 
@@ -325,8 +412,8 @@ def create_plant(plant: PlantIn):
     conn = get_db()
     try:
         cur = conn.execute(
-            "INSERT INTO plants (name, variety, bed_id, row, col, container_id, planted, notes) VALUES (?,?,?,?,?,?,?,?)",
-            (plant.name, plant.variety, plant.bed_id, plant.row, plant.col, plant.container_id, plant.planted, plant.notes)
+            "INSERT INTO plants (crop_id, name, variety, bed_id, row, col, container_id, planted, notes) VALUES (?,?,?,?,?,?,?,?,?)",
+            (plant.crop_id, plant.name, plant.variety, plant.bed_id, plant.row, plant.col, plant.container_id, plant.planted, plant.notes)
         )
         conn.commit()
     except sqlite3.IntegrityError:
@@ -341,8 +428,8 @@ def update_plant(plant_id: int, plant: PlantIn):
     conn = get_db()
     try:
         conn.execute(
-            "UPDATE plants SET name=?, variety=?, bed_id=?, row=?, col=?, container_id=?, planted=?, notes=? WHERE id=?",
-            (plant.name, plant.variety, plant.bed_id, plant.row, plant.col, plant.container_id, plant.planted, plant.notes, plant_id)
+            "UPDATE plants SET crop_id=?, name=?, variety=?, bed_id=?, row=?, col=?, container_id=?, planted=?, notes=? WHERE id=?",
+            (plant.crop_id, plant.name, plant.variety, plant.bed_id, plant.row, plant.col, plant.container_id, plant.planted, plant.notes, plant_id)
         )
         conn.commit()
     except sqlite3.IntegrityError:

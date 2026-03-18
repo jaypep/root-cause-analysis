@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./root-cause-analysis.db:/app/root-cause-analysis.db
+    environment:
+      - DB_PATH=/app/root-cause-analysis.db
+    restart: unless-stopped

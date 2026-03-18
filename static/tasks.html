@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Root Cause Analysis — Tasks</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #f4f7f0;
+      --bg2:       #eaf0e4;
+      --bg3:       #dde8d5;
+      --border:    #c5d8b8;
+      --border2:   #8db87a;
+      --text:      #1e2d17;
+      --text2:     #3d5c2e;
+      --text3:     #6b8f5a;
+      --green:     #3a7a28;
+      --green-dim: #5a8a46;
+      --amber:     #8a6a10;
+      --red:       #8a3a2a;
+      --blue:      #2a5c7a;
+      --blue-dim:  #1a3c5a;
+      --surface:   #eaf0e4;
+      --muted:     #6b8f5a;
+      --radius:    16px;
+    }
+    :root.dark {
+      --bg:        #0d1109;
+      --bg2:       #141a10;
+      --bg3:       #1c2417;
+      --border:    #2a3822;
+      --border2:   #3d5430;
+      --text:      #c8d5b9;
+      --text2:     #7a9068;
+      --text3:     #4a5e3a;
+      --green:     #8db87a;
+      --green-dim: #4a7a28;
+      --amber:     #d4942a;
+      --red:       #c0443a;
+      --blue:      #4a90a4;
+      --blue-dim:  #2d5f70;
+      --surface:   #182417;
+      --muted:     #6a8060;
+      --radius:    16px;
+    }
+    .theme-toggle {
+      background: transparent;
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      font-size: 14px;
+      width: 30px; height: 30px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    .theme-toggle:hover { background: var(--border); color: var(--text); }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      overflow: hidden;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.3rem;
+      font-weight: 500;
+      color: var(--green);
+    }
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+    main {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+      padding: 16px 28px;
+      overflow: hidden;
+    }
+
+    /* Task list */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .panel-header h2 {
+      font-size: 0.65rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+    .toggle-done {
+      font-size: 0.7rem;
+      color: var(--muted);
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: inherit;
+      padding: 0;
+    }
+    .toggle-done:hover { color: var(--text); }
+
+    #task-list { overflow-y: auto; flex: 1; }
+
+    .task-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .task-row:last-child { border-bottom: none; }
+    .task-row.is-done { opacity: 0.45; }
+
+    .task-check {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      border: 1.5px solid var(--border);
+      background: var(--bg);
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .task-check:hover { border-color: var(--green-dim); }
+    .task-check.done  { background: var(--green-dim); border-color: var(--green-dim); color: #fff; }
+
+    .type-icon { font-size: 1.1rem; flex-shrink: 0; }
+
+    .task-info { flex: 1; min-width: 0; }
+    .task-title { font-size: 0.95rem; font-weight: 500; }
+    .task-notes { font-size: 0.72rem; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+    .task-done-at { font-size: 0.68rem; color: var(--muted); margin-top: 2px; font-style: italic; }
+
+    .task-badges { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+    .badge {
+      font-size: 0.62rem;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 99px;
+    }
+    .badge-overdue  { background: var(--red);       color: #fff; }
+    .badge-today    { background: var(--amber);     color: #fff; }
+    .badge-upcoming { background: var(--border);    color: var(--muted); }
+    .badge-auto     { background: var(--green-dim); color: #fff; }
+
+    .task-delete {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 4px;
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .task-row:hover .task-delete { opacity: 1; }
+    .task-delete:hover { color: var(--red); }
+
+    /* Add task form */
+    .add-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      align-self: start;
+    }
+    .add-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label {
+      font-size: 0.65rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .field input, .field select, .field textarea {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      padding: 10px 12px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus { border-color: var(--green-dim); }
+    .field select option { background: var(--surface); }
+    .field textarea { resize: vertical; min-height: 70px; }
+
+    .btn-add {
+      background: var(--green-dim);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
+      padding: 12px;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.15s;
+    }
+    .btn-add:hover  { background: var(--green); }
+    .btn-add:active { transform: scale(0.97); }
+
+    .empty { color: var(--muted); font-size: 0.82rem; padding: 24px; text-align: center; }
+
+    footer {
+      display: flex;
+      gap: 12px;
+      padding: 12px 28px;
+      border-top: 1px solid var(--border);
+    }
+    .nav-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 10px 22px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .nav-btn:hover { border-color: var(--green-dim); color: var(--text); }
+  </style>
+  <script src="/static/theme.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>🌱 Tasks</h1>
+  <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></button>
+</header>
+
+<main>
+  <!-- Task list -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Open tasks</h2>
+      <button class="toggle-done" id="toggle-done-btn" onclick="toggleShowDone()">Show completed</button>
+    </div>
+    <div id="task-list">
+      <div class="empty">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Add task -->
+  <div class="add-panel">
+    <div class="panel-header"><h2>Add task</h2></div>
+    <div class="add-body">
+      <div class="field">
+        <label>Type</label>
+        <select id="new-type">
+          <option value="water">💧 Water plants</option>
+          <option value="pests">🐛 Check for pests</option>
+          <option value="fertilize">🌿 Fertilize</option>
+          <option value="harvest">🌽 Harvest</option>
+          <option value="sow_indoors">🪴 Sow indoors</option>
+          <option value="sow_outdoors">🌱 Sow outdoors</option>
+          <option value="transplant">⛏️ Transplant</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Title</label>
+        <input type="text" id="new-title" placeholder="e.g. Fertilize tomatoes">
+      </div>
+      <div class="field">
+        <label>Due date</label>
+        <input type="date" id="new-due">
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <textarea id="new-notes" placeholder="Optional notes…"></textarea>
+      </div>
+      <button class="btn-add" onclick="addTask()">Add task</button>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a class="nav-btn" href="/">← Dashboard</a>
+  <a class="nav-btn" href="/manage">⚙ Manage</a>
+</footer>
+
+<script>
+  const TASK_ICONS = {
+    water:       '💧',
+    pests:       '🐛',
+    fertilize:   '🌿',
+    harvest:     '🌽',
+    sow_indoors: '🪴',
+    sow_outdoors:'🌱',
+    transplant:  '⛏️',
+  };
+
+  let showDone = false;
+
+  function taskDueBadge(dueDate, done) {
+    if (done || !dueDate) return null;
+    const days = Math.ceil((new Date(dueDate) - new Date()) / 864e5);
+    if (days < 0)  return { label: 'Overdue',  cls: 'badge-overdue' };
+    if (days === 0) return { label: 'Today',    cls: 'badge-today' };
+    if (days === 1) return { label: 'Tomorrow', cls: 'badge-today' };
+    return { label: `In ${days}d`, cls: 'badge-upcoming' };
+  }
+
+  function formatDate(str) {
+    if (!str) return '';
+    return new Date(str).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  async function loadTasks() {
+    const url = showDone ? '/api/tasks?include_done=true' : '/api/tasks';
+    const tasks = await fetch(url).then(r => r.json());
+    const list = document.getElementById('task-list');
+
+    if (tasks.length === 0) {
+      list.innerHTML = `<div class="empty">${showDone ? 'No tasks yet.' : 'No open tasks 🎉'}</div>`;
+      return;
+    }
+
+    list.innerHTML = tasks.map(t => {
+      const badge = taskDueBadge(t.due_date, t.done);
+      const icon  = TASK_ICONS[t.type] || '📋';
+      const auto  = t.title === 'Water garden';
+      return `<div class="task-row ${t.done ? 'is-done' : ''}">
+        <div class="task-check ${t.done ? 'done' : ''}" onclick="toggleTask(${t.id}, this)">
+          ${t.done ? '✓' : ''}
+        </div>
+        <span class="type-icon">${icon}</span>
+        <div class="task-info">
+          <div class="task-title">${t.title}</div>
+          ${t.due_date ? `<div class="task-notes">Due ${formatDate(t.due_date)}</div>` : ''}
+          ${t.notes ? `<div class="task-notes">${t.notes}</div>` : ''}
+          ${t.done && t.done_at ? `<div class="task-done-at">Completed ${formatDate(t.done_at)}</div>` : ''}
+        </div>
+        <div class="task-badges">
+          ${badge ? `<span class="badge ${badge.cls}">${badge.label}</span>` : ''}
+          ${auto  ? `<span class="badge badge-auto">auto</span>` : ''}
+        </div>
+        <button class="task-delete" onclick="deleteTask(${t.id})" title="Delete">✕</button>
+      </div>`;
+    }).join('');
+  }
+
+  async function toggleTask(id, el) {
+    const nowDone = !el.classList.contains('done');
+    await fetch(`/api/tasks/${id}/done`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ done: nowDone })
+    });
+    loadTasks();
+  }
+
+  async function deleteTask(id) {
+    await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+    loadTasks();
+  }
+
+  async function addTask() {
+    const type  = document.getElementById('new-type').value;
+    const title = document.getElementById('new-title').value.trim();
+    const due   = document.getElementById('new-due').value || null;
+    const notes = document.getElementById('new-notes').value.trim() || null;
+
+    if (!title) {
+      document.getElementById('new-title').focus();
+      return;
+    }
+
+    await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, title, due_date: due, notes })
+    });
+
+    document.getElementById('new-title').value = '';
+    document.getElementById('new-due').value   = '';
+    document.getElementById('new-notes').value = '';
+    loadTasks();
+  }
+
+  function toggleShowDone() {
+    showDone = !showDone;
+    document.getElementById('toggle-done-btn').textContent =
+      showDone ? 'Hide completed' : 'Show completed';
+    loadTasks();
+  }
+
+  // Sync weather tasks on load
+  fetch('/api/tasks/sync', { method: 'POST' }).then(() => loadTasks());
+</script>
+</body>
+</html>

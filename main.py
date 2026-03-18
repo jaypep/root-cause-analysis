@@ -5,6 +5,8 @@ from pydantic import BaseModel, model_validator
 from typing import Optional
 import sqlite3
 import os
+import urllib.request
+import json
 from datetime import datetime
 
 app = FastAPI(title="Root Cause Analysis")
@@ -96,6 +98,22 @@ def init_db():
             tags     TEXT,
             created  TEXT DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS settings (
+            key    TEXT PRIMARY KEY,
+            value  TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS tasks (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            type      TEXT NOT NULL,
+            title     TEXT NOT NULL,
+            due_date  TEXT,
+            done      INTEGER DEFAULT 0,
+            done_at   TEXT,
+            notes     TEXT,
+            created   TEXT DEFAULT (datetime('now'))
+        );
     """)
     conn.commit()
     conn.close()
@@ -163,6 +181,17 @@ class JournalIn(BaseModel):
     title: Optional[str] = None
     body: str
     tags: Optional[str] = None
+
+TASK_TYPES = {"water", "pests", "fertilize", "harvest", "sow_indoors", "sow_outdoors", "transplant"}
+
+class TaskIn(BaseModel):
+    type: str
+    title: str
+    due_date: Optional[str] = None
+    notes: Optional[str] = None
+
+class TaskDone(BaseModel):
+    done: bool
 
 # ---------------------------------------------------------------------------
 # Zones
@@ -581,6 +610,267 @@ def delete_entry(entry_id: int):
     conn.close()
 
 # ---------------------------------------------------------------------------
+# Weather proxy (NWS, no API key required)
+# ---------------------------------------------------------------------------
+
+WEATHER_STATION_DEFAULT = os.getenv("WEATHER_STATION", "KROG")
+WEATHER_LAT_DEFAULT     = os.getenv("WEATHER_LAT", "36.3726")
+WEATHER_LON_DEFAULT     = os.getenv("WEATHER_LON", "-94.1069")
+
+def nws_get(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "root-cause-analysis/1.0"})
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        return json.loads(resp.read())
+
+def get_setting(conn, key, default):
+    row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else default
+
+@app.get("/api/weather")
+def get_weather():
+    conn = get_db()
+    station = get_setting(conn, "weather_station", WEATHER_STATION_DEFAULT)
+    lat     = get_setting(conn, "weather_lat",     WEATHER_LAT_DEFAULT)
+    lon     = get_setting(conn, "weather_lon",     WEATHER_LON_DEFAULT)
+    conn.close()
+    try:
+        # Current conditions from station
+        obs_data = nws_get(f"https://api.weather.gov/stations/{station}/observations?limit=1")
+        latest = obs_data["features"][0]["properties"] if obs_data.get("features") else {}
+        temp_c = latest.get("temperature", {}).get("value")
+        temp_f = round(temp_c * 9 / 5 + 32, 1) if temp_c is not None else None
+        description = latest.get("textDescription", "")
+
+        # Wind — NWS returns km/h, convert to mph
+        def kmh_to_mph(v):
+            return round(v * 0.621371, 1) if v is not None else None
+
+        wind_speed_kmh = latest.get("windSpeed", {}).get("value")
+        wind_gust_kmh  = latest.get("windGust", {}).get("value")
+        wind_dir_deg   = latest.get("windDirection", {}).get("value")
+
+        def deg_to_cardinal(d):
+            if d is None: return None
+            dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE",
+                    "S","SSW","SW","WSW","W","WNW","NW","NNW"]
+            return dirs[round(d / 22.5) % 16]
+
+        # Precipitation from Open-Meteo (no API key, no rounding bug)
+        from datetime import timedelta
+        precip_url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat}&longitude={lon}"
+            f"&daily=precipitation_sum"
+            f"&precipitation_unit=inch"
+            f"&timezone=America%2FChicago"
+            f"&past_days=7&forecast_days=1"
+        )
+        precip_data = nws_get(precip_url)
+        times   = precip_data["daily"]["time"]
+        amounts = precip_data["daily"]["precipitation_sum"]
+        # today + past 7 = 8 entries; keep last 7
+        pairs = list(zip(times, amounts))[-7:]
+        rainfall = [
+            {"date": d, "inches": round(a or 0, 2)}
+            for d, a in pairs
+        ]
+
+        # 7-day temp range from recent observations
+        recent_obs = nws_get(f"https://api.weather.gov/stations/{station}/observations?limit=168")
+        temps = []
+        for f in recent_obs.get("features", []):
+            v = f["properties"].get("temperature", {}).get("value")
+            if v is not None:
+                temps.append(round(v * 9 / 5 + 32, 1))
+
+        return {
+            "station": station,
+            "current": {
+                "temp_f": temp_f,
+                "description": description,
+                "wind_speed_mph": kmh_to_mph(wind_speed_kmh),
+                "wind_gust_mph":  kmh_to_mph(wind_gust_kmh),
+                "wind_dir_deg":   wind_dir_deg,
+                "wind_dir":       deg_to_cardinal(wind_dir_deg),
+            },
+            "temp_high": max(temps) if temps else None,
+            "temp_low":  min(temps) if temps else None,
+            "rainfall":  rainfall,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Weather fetch failed: {e}")
+
+# ---------------------------------------------------------------------------
+# Tasks
+# ---------------------------------------------------------------------------
+
+@app.get("/api/tasks")
+def list_tasks(include_done: bool = False):
+    conn = get_db()
+    if include_done:
+        rows = conn.execute("SELECT * FROM tasks ORDER BY done ASC, due_date ASC").fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM tasks WHERE done=0 ORDER BY due_date ASC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.post("/api/tasks", status_code=201)
+def create_task(task: TaskIn):
+    if task.type not in TASK_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid task type. Must be one of: {', '.join(TASK_TYPES)}")
+    conn = get_db()
+    cur = conn.execute(
+        "INSERT INTO tasks (type, title, due_date, notes) VALUES (?,?,?,?)",
+        (task.type, task.title, task.due_date, task.notes)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM tasks WHERE id=?", (cur.lastrowid,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.patch("/api/tasks/{task_id}/done")
+def mark_task_done(task_id: int, body: TaskDone):
+    conn = get_db()
+    done_at = datetime.now().isoformat() if body.done else None
+    conn.execute(
+        "UPDATE tasks SET done=?, done_at=? WHERE id=?",
+        (1 if body.done else 0, done_at, task_id)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return dict(row)
+
+@app.delete("/api/tasks/{task_id}", status_code=204)
+def delete_task(task_id: int):
+    conn = get_db()
+    conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))
+    conn.commit()
+    conn.close()
+
+@app.post("/api/tasks/sync")
+def sync_weather_tasks():
+    """
+    Examines the last 7 days of rainfall and upserts a watering task if needed.
+    Rules:
+      - Total >= 1.0" in last 7 days → delete any open watering task, no new one needed
+      - Total < 1.0"                 → upsert a watering task due 3 days after last rain day
+                                       (or 3 days from today if no rain at all)
+    """
+    from datetime import date, timedelta
+
+    # Fetch rainfall from Open-Meteo
+    conn = get_db()
+    lat = get_setting(conn, "weather_lat", WEATHER_LAT_DEFAULT)
+    lon = get_setting(conn, "weather_lon", WEATHER_LON_DEFAULT)
+    conn.close()
+
+    try:
+        precip_url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat}&longitude={lon}"
+            f"&daily=precipitation_sum"
+            f"&precipitation_unit=inch"
+            f"&timezone=America%2FChicago"
+            f"&past_days=7&forecast_days=1"
+        )
+        precip_data = nws_get(precip_url)
+        times   = precip_data["daily"]["time"]
+        amounts = precip_data["daily"]["precipitation_sum"]
+        pairs   = list(zip(times, amounts))[-7:]
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Weather fetch failed: {e}")
+
+    total_rain   = sum(a or 0 for _, a in pairs)
+    today_str    = date.today().isoformat()
+
+    conn = get_db()
+
+    if total_rain >= 1.0:
+        # Enough rain — close any open auto watering task
+        conn.execute(
+            "UPDATE tasks SET done=1, done_at=?, notes='Closed automatically — sufficient rainfall' "
+            "WHERE type='water' AND done=0 AND title='Water garden'",
+            (datetime.now().isoformat(),)
+        )
+        conn.commit()
+        conn.close()
+        return {"action": "closed", "total_rain_inches": round(total_rain, 2)}
+
+    # Find last day with any rain
+    last_rain_date = None
+    for day, amt in reversed(pairs):
+        if (amt or 0) > 0:
+            last_rain_date = day
+            break
+
+    if last_rain_date:
+        base = datetime.strptime(last_rain_date, "%Y-%m-%d").date()
+    else:
+        base = date.today()
+
+    due = (base + timedelta(days=3)).isoformat()
+
+    # Upsert — update existing open task or create new one
+    existing = conn.execute(
+        "SELECT id FROM tasks WHERE type='water' AND title='Water garden' AND done=0"
+    ).fetchone()
+
+    if existing:
+        conn.execute(
+            "UPDATE tasks SET due_date=?, notes=? WHERE id=?",
+            (due, f"Total rain last 7 days: {total_rain:.2f}\". Last rain: {last_rain_date or 'none'}.", existing["id"])
+        )
+        action = "updated"
+    else:
+        conn.execute(
+            "INSERT INTO tasks (type, title, due_date, notes) VALUES ('water','Water garden',?,?)",
+            (due, f"Total rain last 7 days: {total_rain:.2f}\". Last rain: {last_rain_date or 'none'}.")
+        )
+        action = "created"
+
+    conn.commit()
+    conn.close()
+    return {"action": action, "due_date": due, "total_rain_inches": round(total_rain, 2), "last_rain": last_rain_date}
+
+# ---------------------------------------------------------------------------
+# Settings
+# ---------------------------------------------------------------------------
+
+class SettingsIn(BaseModel):
+    weather_station: str
+    weather_lat: str
+    weather_lon: str
+
+@app.get("/api/settings")
+def get_settings():
+    conn = get_db()
+    station = get_setting(conn, "weather_station", WEATHER_STATION_DEFAULT)
+    lat     = get_setting(conn, "weather_lat",     WEATHER_LAT_DEFAULT)
+    lon     = get_setting(conn, "weather_lon",     WEATHER_LON_DEFAULT)
+    conn.close()
+    return {"weather_station": station, "weather_lat": lat, "weather_lon": lon}
+
+@app.put("/api/settings")
+def update_settings(s: SettingsIn):
+    conn = get_db()
+    for key, val in [
+        ("weather_station", s.weather_station),
+        ("weather_lat",     s.weather_lat),
+        ("weather_lon",     s.weather_lon),
+    ]:
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, val)
+        )
+    conn.commit()
+    conn.close()
+    return {"weather_station": s.weather_station, "weather_lat": s.weather_lat, "weather_lon": s.weather_lon}
+
+# ---------------------------------------------------------------------------
 # Serve frontend
 # ---------------------------------------------------------------------------
 
@@ -593,3 +883,11 @@ def dashboard():
 @app.get("/manage")
 def manage():
     return FileResponse("static/manage.html")
+
+@app.get("/settings")
+def settings_page():
+    return FileResponse("static/settings.html")
+
+@app.get("/tasks")
+def tasks_page():
+    return FileResponse("static/tasks.html")

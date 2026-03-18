@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Root Cause Analysis — Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f4f7f0;
+      --bg2:       #eaf0e4;
+      --bg3:       #dde8d5;
+      --border:    #c5d8b8;
+      --border2:   #8db87a;
+      --text:      #1e2d17;
+      --text2:     #3d5c2e;
+      --text3:     #6b8f5a;
+      --green:     #3a7a28;
+      --green-dim: #5a8a46;
+      --amber:     #8a6a10;
+      --red:       #8a3a2a;
+      --blue:      #2a5c7a;
+      --blue-dim:  #1a3c5a;
+      --surface:   #eaf0e4;
+      --muted:     #6b8f5a;
+      --radius:    16px;
+    }
+    :root.dark {
+      --bg:        #0d1109;
+      --bg2:       #141a10;
+      --bg3:       #1c2417;
+      --border:    #2a3822;
+      --border2:   #3d5430;
+      --text:      #c8d5b9;
+      --text2:     #7a9068;
+      --text3:     #4a5e3a;
+      --green:     #8db87a;
+      --green-dim: #4a7a28;
+      --amber:     #d4942a;
+      --red:       #c0443a;
+      --blue:      #4a90a4;
+      --blue-dim:  #2d5f70;
+      --surface:   #182417;
+      --muted:     #6a8060;
+      --radius:    16px;
+    }
+    .theme-toggle {
+      background: transparent;
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      font-size: 14px;
+      width: 30px; height: 30px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    .theme-toggle:hover { background: var(--border); color: var(--text); }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.3rem;
+      font-weight: 500;
+      color: var(--green);
+    }
+
+    main {
+      padding: 28px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      max-width: 640px;
+    }
+
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-header h2 {
+      font-size: 0.65rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    .section-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    .field label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .field input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      padding: 12px 14px;
+      width: 100%;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+
+    .field input:focus { border-color: var(--green-dim); }
+
+    .field-hint {
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .field-hint a { color: var(--green); text-decoration: none; }
+    .field-hint a:hover { text-decoration: underline; }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .actions { display: flex; align-items: center; gap: 12px; }
+
+    .btn-save {
+      background: var(--green-dim);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
+      padding: 12px 28px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-save:hover { background: var(--green); }
+    .btn-save:active { transform: scale(0.97); }
+
+    .status {
+      font-size: 0.8rem;
+      color: var(--muted);
+      transition: opacity 0.3s;
+    }
+    .status.ok  { color: var(--green); }
+    .status.err { color: var(--red); }
+
+    .preview-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .preview-box span { color: var(--text); font-weight: 500; }
+
+    footer {
+      display: flex;
+      gap: 12px;
+      padding: 12px 28px;
+      border-top: 1px solid var(--border);
+    }
+
+    .nav-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 10px 22px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .nav-btn:hover { border-color: var(--green-dim); color: var(--text); }
+  </style>
+  <script src="/static/theme.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>🌱 Settings</h1>
+  <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></button>
+</header>
+
+<main>
+  <div class="section">
+    <div class="section-header">
+      <h2>Weather station</h2>
+    </div>
+    <div class="section-body">
+
+      <div class="field">
+        <label>ICAO station ID</label>
+        <input type="text" id="weather-station" placeholder="e.g. KROG" maxlength="10">
+        <div class="field-hint">
+          4-letter ICAO code for your nearest airport weather station.
+          Find yours at <a href="https://www.weather.gov" target="_blank">weather.gov</a>
+          — enter your zip code and look for "Current conditions at".
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label>Latitude</label>
+          <input type="text" id="weather-lat" placeholder="e.g. 36.3726">
+        </div>
+        <div class="field">
+          <label>Longitude</label>
+          <input type="text" id="weather-lon" placeholder="e.g. -94.1069">
+        </div>
+      </div>
+
+      <div class="field-hint">
+        Latitude and longitude are used for rainfall data from Open-Meteo.
+        Find your coordinates by right-clicking your location on
+        <a href="https://maps.google.com" target="_blank">Google Maps</a>.
+      </div>
+
+      <div class="preview-box" id="preview">
+        Loading current settings…
+      </div>
+
+      <div class="actions">
+        <button class="btn-save" onclick="saveSettings()">Save settings</button>
+        <span class="status" id="status"></span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a class="nav-btn" href="/">← Dashboard</a>
+  <a class="nav-btn" href="/manage">⚙ Manage</a>
+</footer>
+
+<script>
+  async function loadSettings() {
+    const data = await fetch('/api/settings').then(r => r.json());
+    document.getElementById('weather-station').value = data.weather_station;
+    document.getElementById('weather-lat').value     = data.weather_lat;
+    document.getElementById('weather-lon').value     = data.weather_lon;
+    updatePreview(data);
+  }
+
+  function updatePreview(data) {
+    document.getElementById('preview').innerHTML =
+      `Station: <span>${data.weather_station}</span> &nbsp;·&nbsp; ` +
+      `Lat: <span>${data.weather_lat}</span> &nbsp;·&nbsp; ` +
+      `Lon: <span>${data.weather_lon}</span>`;
+  }
+
+  async function saveSettings() {
+    const station = document.getElementById('weather-station').value.trim().toUpperCase();
+    const lat     = document.getElementById('weather-lat').value.trim();
+    const lon     = document.getElementById('weather-lon').value.trim();
+    const status  = document.getElementById('status');
+
+    if (!station || !lat || !lon) {
+      status.textContent = 'All fields are required.';
+      status.className = 'status err';
+      return;
+    }
+
+    if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lon))) {
+      status.textContent = 'Latitude and longitude must be numbers.';
+      status.className = 'status err';
+      return;
+    }
+
+    const resp = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weather_station: station, weather_lat: lat, weather_lon: lon })
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      updatePreview(data);
+      status.textContent = 'Saved ✓';
+      status.className = 'status ok';
+      setTimeout(() => { status.textContent = ''; status.className = 'status'; }, 3000);
+    } else {
+      status.textContent = 'Save failed — check the server logs.';
+      status.className = 'status err';
+    }
+  }
+
+  loadSettings();
+</script>
+</body>
+</html>

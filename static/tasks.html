@@ -46,43 +46,18 @@
       --muted:     #6a8060;
       --radius:    16px;
     }
-    .theme-toggle {
-      background: transparent;
-      border: 1px solid var(--border2);
-      color: var(--text2);
-      font-size: 14px;
-      width: 30px; height: 30px;
-      border-radius: 6px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: all 0.15s;
-      padding: 0;
-      flex-shrink: 0;
-    }
-    .theme-toggle:hover { background: var(--border); color: var(--text); }
     body {
       font-family: 'DM Sans', sans-serif;
       background: var(--bg);
       color: var(--text);
       height: 100dvh;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto 1fr;
       overflow: hidden;
     }
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 28px;
-      border-bottom: 1px solid var(--border);
-    }
-    header h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.3rem;
-      font-weight: 500;
-      color: var(--green);
-    }
-    .header-actions { display: flex; gap: 10px; align-items: center; }
+
+
+
     main {
       display: grid;
       grid-template-columns: 1fr 320px;
@@ -245,45 +220,83 @@
 
     .empty { color: var(--muted); font-size: 0.82rem; padding: 24px; text-align: center; }
 
-    footer {
+    .task-tab {
+      padding: 12px 22px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--muted);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      margin-bottom: -1px;
+    }
+    .task-tab:hover { color: var(--text); }
+    .task-tab-active { color: var(--green) !important; border-bottom-color: var(--green) !important; }
+
+
+
+
+  
+    /* ── Shared header ── */
+    #site-header {
       display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
       gap: 12px;
-      padding: 12px 28px;
-      border-top: 1px solid var(--border);
+    }
+    .site-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem;
+      font-weight: 500;
+      color: var(--green);
+      white-space: nowrap;
     }
     .nav-btn {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 10px;
       color: var(--muted);
       font-family: 'DM Sans', sans-serif;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       font-weight: 500;
-      padding: 10px 22px;
+      padding: 8px 16px;
       cursor: pointer;
       text-decoration: none;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      transition: border-color 0.15s, color 0.15s;
+      gap: 6px;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      white-space: nowrap;
     }
-    .nav-btn:hover { border-color: var(--green-dim); color: var(--text); }
+    .nav-btn:hover { border-color: var(--border2); color: var(--text); }
+    .nav-active {
+      border-color: var(--green) !important;
+      color: var(--green) !important;
+      background: var(--bg2) !important;
+    }
+
   </style>
-  <script src="/static/theme.js"></script>
+  
+  <script src="/static/theme.js?v=2" defer></script>
 </head>
 <body>
 
-<header>
-  <h1>🌱 Tasks</h1>
-  <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></button>
-</header>
+<header id="site-header"></header>
 
 <main>
   <!-- Task list -->
   <div class="panel">
-    <div class="panel-header">
-      <h2>Open tasks</h2>
-      <button class="toggle-done" id="toggle-done-btn" onclick="toggleShowDone()">Show completed</button>
+    <div class="panel-header" style="padding:0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;gap:0;">
+        <button id="tab-open" class="task-tab task-tab-active" onclick="setTab('open')">Open tasks</button>
+        <button id="tab-done" class="task-tab" onclick="setTab('done')">Completed</button>
+      </div>
     </div>
     <div id="task-list">
       <div class="empty">Loading…</div>
@@ -323,10 +336,7 @@
   </div>
 </main>
 
-<footer>
-  <a class="nav-btn" href="/">← Dashboard</a>
-  <a class="nav-btn" href="/manage">⚙ Manage</a>
-</footer>
+
 
 <script>
   const TASK_ICONS = {
@@ -356,12 +366,12 @@
   }
 
   async function loadTasks() {
-    const url = showDone ? '/api/tasks?include_done=true' : '/api/tasks';
+    const url = showDone ? '/api/tasks?done_only=true' : '/api/tasks';
     const tasks = await fetch(url).then(r => r.json());
     const list = document.getElementById('task-list');
 
     if (tasks.length === 0) {
-      list.innerHTML = `<div class="empty">${showDone ? 'No tasks yet.' : 'No open tasks 🎉'}</div>`;
+      list.innerHTML = '<div class="empty">' + (showDone ? 'No completed tasks yet.' : 'No open tasks 🎉') + '</div>';
       return;
     }
 
@@ -427,10 +437,10 @@
     loadTasks();
   }
 
-  function toggleShowDone() {
-    showDone = !showDone;
-    document.getElementById('toggle-done-btn').textContent =
-      showDone ? 'Hide completed' : 'Show completed';
+  function setTab(tab) {
+    showDone = tab === 'done';
+    document.getElementById('tab-open').classList.toggle('task-tab-active', !showDone);
+    document.getElementById('tab-done').classList.toggle('task-tab-active', showDone);
     loadTasks();
   }
 

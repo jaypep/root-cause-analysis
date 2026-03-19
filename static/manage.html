@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Root Cause Analysis — Manage</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     :root {
       --bg:        #f4f7f0;
       --bg2:       #eaf0e4;
@@ -18,11 +19,13 @@
       --text2:     #3d5c2e;
       --text3:     #6b8f5a;
       --green:     #3a7a28;
-      --green2:    #5a8a46;
-      --accent:    #2a5c1a;
-      --yellow:    #8a6a10;
+      --green-dim: #5a8a46;
+      --amber:     #8a6a10;
       --red:       #8a3a2a;
+      --surface:   #eaf0e4;
+      --muted:     #6b8f5a;
       --dim:       rgba(90,138,70,0.08);
+      --radius:    16px;
     }
     :root.dark {
       --bg:        #0d1109;
@@ -34,182 +37,299 @@
       --text2:     #7a9068;
       --text3:     #4a5e3a;
       --green:     #8db87a;
-      --green2:    #5a8a46;
-      --accent:    #b5d99c;
-      --yellow:    #d4b96a;
-      --red:       #c47a6a;
+      --green-dim: #4a7a28;
+      --amber:     #d4942a;
+      --red:       #c0443a;
+      --surface:   #182417;
+      --muted:     #6a8060;
       --dim:       rgba(141,184,122,0.07);
+      --radius:    16px;
     }
-    .theme-toggle {
-      background: transparent;
-      border: 1px solid var(--border2);
-      color: var(--text2);
-      font-size: 14px;
-      width: 30px; height: 30px;
-      border-radius: 4px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: all 0.15s;
-      padding: 0;
-    }
-    .theme-toggle:hover { background: var(--dim); color: var(--accent); }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'DM Mono', monospace;
-      font-size: 13px;
-      min-height: 100vh;
-    }
-    .shell {
-      display: grid;
-      grid-template-columns: 220px 1fr;
-      grid-template-rows: 52px 1fr;
-      min-height: 100vh;
-    }
-    /* topbar */
-    .topbar {
-      grid-column: 1 / -1;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0 28px;
+
+    /* ── Shared header (injected by theme.js) ── */
+    #site-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
       border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 12px;
       background: var(--bg2);
     }
-    .topbar-logo { display: flex; align-items: baseline; gap: 10px; }
-    .topbar-logo .wordmark { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700; color: var(--accent); }
-    .topbar-logo .sub { font-size: 10px; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; }
-    /* sidebar */
+    .site-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem;
+      font-weight: 500;
+      color: var(--green);
+      white-space: nowrap;
+    }
+    .nav-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 8px 16px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+    .nav-btn:hover { border-color: var(--border2); color: var(--text); }
+    .nav-active {
+      border-color: var(--green) !important;
+      color: var(--green) !important;
+      background: var(--bg2) !important;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+    }
+
+    /* Shell: sidebar + main */
+    .shell {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
     .sidebar {
       background: var(--bg2);
       border-right: 1px solid var(--border);
-      padding: 24px 0;
-      display: flex; flex-direction: column; gap: 2px;
+      padding: 20px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow-y: auto;
     }
-    .nav-section { padding: 12px 18px 4px; font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text3); }
+
+    .nav-section {
+      padding: 12px 18px 4px;
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
     .nav-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 18px;
       color: var(--text2);
       cursor: pointer;
       border-left: 2px solid transparent;
+      font-size: 0.85rem;
       transition: all 0.15s;
     }
-    .nav-item:hover, .nav-item.active { color: var(--accent); background: var(--dim); border-left-color: var(--green2); }
-    .nav-item .icon { font-size: 14px; width: 18px; text-align: center; }
-    /* main */
-    .main { padding: 28px 32px; overflow-y: auto; background: var(--bg); }
-    /* header */
-    .page-header {
-      margin-bottom: 28px;
-      display: flex; align-items: flex-end; justify-content: space-between;
+    .nav-item:hover, .nav-item.active {
+      color: var(--green);
+      background: var(--dim);
+      border-left-color: var(--green-dim);
     }
-    .page-title { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 400; color: var(--accent); }
-    .page-subtitle { font-size: 11px; color: var(--text3); margin-top: 4px; letter-spacing: 0.05em; }
-    /* buttons */
+    .nav-item .icon { font-size: 1rem; width: 20px; text-align: center; }
+
+    /* Main content */
+    .main {
+      padding: 24px 28px;
+      overflow-y: auto;
+      background: var(--bg);
+    }
+
+    /* Page header */
+    .page-header {
+      margin-bottom: 24px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+    .page-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem;
+      font-weight: 500;
+      color: var(--green);
+    }
+    .page-subtitle {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* Buttons */
     .btn {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 7px 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
       background: transparent;
       border: 1px solid var(--border2);
       color: var(--green);
-      font-family: 'DM Mono', monospace;
-      font-size: 11px;
-      border-radius: 4px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem;
+      border-radius: 8px;
       cursor: pointer;
       text-decoration: none;
       transition: all 0.15s;
     }
-    .btn:hover { background: var(--dim); border-color: var(--green); color: var(--accent); }
-    .btn-primary { background: var(--green2); border-color: var(--green); color: var(--bg); }
-    .btn-primary:hover { background: var(--green); }
+    .btn:hover { background: var(--dim); border-color: var(--green); color: var(--text); }
+    .btn-primary { background: var(--green-dim); border-color: var(--green-dim); color: #fff; }
+    .btn-primary:hover { background: var(--green); border-color: var(--green); }
     .btn-danger { border-color: var(--red); color: var(--red); }
-    .btn-danger:hover { background: rgba(196,122,106,0.15); }
-    .btn-sm { padding: 4px 10px; font-size: 10px; }
-    /* panel */
-    .panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
-    .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }
-    .panel-title { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text2); }
-    /* form */
+    .btn-danger:hover { background: rgba(138,58,42,0.1); }
+    .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+
+    /* Panel */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-title {
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    /* Form */
     .form-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 14px;
-      padding: 18px;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      padding: 16px 18px;
     }
     .form-group { display: flex; flex-direction: column; gap: 5px; }
     .form-group.span2 { grid-column: span 2; }
     .form-group.span3 { grid-column: 1 / -1; }
-    label { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); }
+
+    label {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
     input, select, textarea {
-      background: var(--bg3);
-      border: 1px solid var(--border2);
+      background: var(--bg);
+      border: 1px solid var(--border);
       color: var(--text);
-      font-family: 'DM Mono', monospace;
-      font-size: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.88rem;
       padding: 8px 10px;
-      border-radius: 4px;
+      border-radius: 8px;
       outline: none;
       transition: border-color 0.15s;
     }
-    input:focus, select:focus, textarea:focus { border-color: var(--green2); }
-    select option { background: var(--bg3); }
+    input:focus, select:focus, textarea:focus { border-color: var(--green-dim); }
+    select option { background: var(--bg2); }
     textarea { resize: vertical; min-height: 64px; }
-    .form-actions { display: flex; gap: 10px; padding: 0 18px 18px; }
-    /* table */
+
+    .form-actions { display: flex; gap: 10px; padding: 0 18px 16px; }
+
+    /* Table */
     .tbl { width: 100%; border-collapse: collapse; }
-    .tbl th { text-align: left; padding: 8px 18px; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border); background: var(--bg3); }
-    .tbl td { padding: 9px 18px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .tbl th {
+      text-align: left;
+      padding: 8px 18px;
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+    }
+    .tbl td { padding: 9px 18px; border-bottom: 1px solid var(--border); vertical-align: middle; font-size: 0.85rem; }
     .tbl tr:last-child td { border-bottom: none; }
     .tbl tr:hover td { background: var(--dim); }
     .tbl-actions { display: flex; gap: 6px; }
-    /* empty */
-    .empty { padding: 36px 18px; text-align: center; color: var(--text3); font-size: 11px; }
-    .loading { color: var(--text3); font-size: 11px; padding: 20px 18px; }
-    /* toast */
+
+    .empty { padding: 32px 18px; text-align: center; color: var(--muted); font-size: 0.82rem; }
+    .loading { color: var(--muted); font-size: 0.82rem; padding: 20px 18px; }
+
+    /* Toast */
     #toast {
-      position: fixed; bottom: 24px; right: 24px;
-      background: var(--bg3); border: 1px solid var(--green2);
-      color: var(--green); font-family: 'DM Mono', monospace; font-size: 12px;
-      padding: 10px 18px; border-radius: 5px;
-      opacity: 0; transform: translateY(8px); transition: all 0.2s;
-      pointer-events: none; z-index: 999;
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface);
+      border: 1px solid var(--green-dim);
+      color: var(--green);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem;
+      padding: 10px 18px;
+      border-radius: 10px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.2s;
+      pointer-events: none;
+      z-index: 999;
     }
     #toast.show { opacity: 1; transform: translateY(0); }
-    /* confirm dialog */
+
+    /* Confirm dialog */
     .overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-      display: flex; align-items: center; justify-content: center;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       z-index: 900;
     }
     .dialog {
-      background: var(--bg2); border: 1px solid var(--border2);
-      border-radius: 8px; padding: 28px 32px;
-      max-width: 360px; width: 90%;
-      font-size: 13px; color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 14px;
+      padding: 28px 32px;
+      max-width: 360px;
+      width: 90%;
     }
-    .dialog h3 { font-family: 'Playfair Display', serif; color: var(--accent); margin-bottom: 10px; font-size: 18px; font-weight: 400; }
-    .dialog p { color: var(--text2); font-size: 12px; margin-bottom: 20px; line-height: 1.5; }
+    .dialog h3 {
+      font-family: 'Playfair Display', serif;
+      color: var(--green);
+      margin-bottom: 10px;
+      font-size: 1.2rem;
+      font-weight: 500;
+    }
+    .dialog p { color: var(--text2); font-size: 0.85rem; margin-bottom: 20px; line-height: 1.5; }
     .dialog-actions { display: flex; gap: 10px; }
-    @media (max-width: 900px) {
+
+    @media (max-width: 768px) {
       .shell { grid-template-columns: 1fr; }
       .sidebar { display: none; }
     }
   </style>
-  <script src="/static/theme.js"></script>
+  <script src="/static/theme.js?v=2" defer></script>
 </head>
 <body>
-<div class="shell">
-  <header class="topbar">
-    <div class="topbar-logo">
-      <span class="wordmark">🌱 Root Cause Analysis</span>
-      <span class="sub">manage</span>
-    </div>
-    <div style="display:flex;gap:12px;align-items:center">
-      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode" id="theme-btn">🌙</button>
-      <a class="btn" href="/">← Dashboard</a>
-    </div>
-  </header>
 
+<header id="site-header"></header>
+
+<div class="shell">
   <nav class="sidebar">
     <div class="nav-section">Data entry</div>
     <div class="nav-item active" onclick="showSection('plants')"><span class="icon">🌿</span> Plants</div>
@@ -227,32 +347,15 @@
 <div id="overlay-root"></div>
 
 <script>
-// ── theme ──
-(function() {
-  const saved = localStorage.getItem('rca-theme');
-  if (saved === 'dark') document.documentElement.classList.add('dark');
-})();
-function toggleTheme() {
-  const isDark = document.documentElement.classList.toggle('dark');
-  localStorage.setItem('rca-theme', isDark ? 'dark' : 'light');
-  document.getElementById('theme-btn').textContent = isDark ? '☀️' : '🌙';
-}
-document.addEventListener('DOMContentLoaded', () => {
-  const isDark = document.documentElement.classList.contains('dark');
-  document.getElementById('theme-btn').textContent = isDark ? '☀️' : '🌙';
-});
-
-// ── toast ──
 function toast(msg, isErr) {
   const t = document.getElementById('toast');
   t.textContent = msg;
-  t.style.borderColor = isErr ? 'var(--red)' : 'var(--green2)';
+  t.style.borderColor = isErr ? 'var(--red)' : 'var(--green-dim)';
   t.style.color = isErr ? 'var(--red)' : 'var(--green)';
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2800);
 }
 
-// ── confirm dialog ──
 function confirm(title, msg) {
   return new Promise(resolve => {
     const root = document.getElementById('overlay-root');
@@ -275,7 +378,6 @@ function closeDialog(v) {
   window._dialogResolve?.(v);
 }
 
-// ── API ──
 async function api(path, opts) {
   try {
     const r = await fetch(path, opts);
@@ -288,16 +390,12 @@ async function api(path, opts) {
   }
 }
 
-// ── nav ──
-let currentSection = 'plants';
 function showSection(s) {
-  currentSection = s;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el => {
     if (el.getAttribute('onclick')?.includes(`'${s}'`)) el.classList.add('active');
   });
-  const map = { plants, zones, beds, containers, schedules, journal };
-  (map[s] || plants)();
+  ({ plants, zones, beds, containers, schedules, journal }[s] || plants)();
 }
 
 function fmtDate(s) {
@@ -312,37 +410,21 @@ async function zones() {
   const main = document.getElementById('main-content');
   main.innerHTML = '<div class="loading">Loading…</div>';
   const data = await api('/api/zones');
-
   main.innerHTML = `
     <div class="page-header">
-      <div>
-        <div class="page-title">Zones</div>
-        <div class="page-subtitle">Garden areas / sections</div>
-      </div>
+      <div><div class="page-title">Zones</div><div class="page-subtitle">Garden areas and sections</div></div>
     </div>
-
-    <div class="panel" id="zone-form-panel">
+    <div class="panel">
       <div class="panel-head"><span class="panel-title">Add zone</span></div>
       <div class="form-grid">
-        <div class="form-group span2">
-          <label>Name</label>
-          <input id="z-name" placeholder="e.g. Front yard">
-        </div>
-        <div class="form-group span2">
-          <label>Notes</label>
-          <input id="z-notes" placeholder="Optional notes">
-        </div>
+        <div class="form-group span2"><label>Name *</label><input id="z-name" placeholder="e.g. Front yard"></div>
+        <div class="form-group span2"><label>Notes</label><input id="z-notes" placeholder="Optional notes"></div>
       </div>
-      <div class="form-actions">
-        <button class="btn btn-primary" onclick="createZone()">Add zone</button>
-      </div>
+      <div class="form-actions"><button class="btn btn-primary" onclick="createZone()">Add zone</button></div>
     </div>
-
     <div class="panel">
       <div class="panel-head"><span class="panel-title">${data.length} zones</span></div>
-      <div class="panel-body" id="zones-table">
-        ${zonesTable(data)}
-      </div>
+      ${zonesTable(data)}
     </div>`;
 }
 
@@ -353,28 +435,23 @@ function zonesTable(data) {
     <tbody>${data.map(z=>`<tr>
       <td>${z.name}</td>
       <td style="color:var(--text2)">${z.notes||''}</td>
-      <td style="color:var(--text3)">${fmtDate(z.created)}</td>
-      <td><div class="tbl-actions">
-        <button class="btn btn-sm btn-danger" onclick="deleteZone(${z.id},'${z.name}')">Delete</button>
-      </div></td>
-    </tr>`).join('')}</tbody>
-  </table>`;
+      <td style="color:var(--muted)">${fmtDate(z.created)}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteZone(${z.id},'${z.name}')">Delete</button></td>
+    </tr>`).join('')}</tbody></table>`;
 }
 
 async function createZone() {
   const name = document.getElementById('z-name').value.trim();
   const notes = document.getElementById('z-notes').value.trim();
   if (!name) { toast('Name required', true); return; }
-  await api('/api/zones', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, notes: notes||null})});
-  toast('Zone added');
-  zones();
+  await api('/api/zones', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, notes:notes||null})});
+  toast('Zone added'); zones();
 }
 
 async function deleteZone(id, name) {
   if (!await confirm('Delete zone', `Delete "${name}"? Beds in this zone will be unlinked.`)) return;
   await api(`/api/zones/${id}`, {method:'DELETE'});
-  toast('Zone deleted');
-  zones();
+  toast('Zone deleted'); zones();
 }
 
 // ════════════════════════
@@ -384,9 +461,7 @@ async function beds() {
   const main = document.getElementById('main-content');
   main.innerHTML = '<div class="loading">Loading…</div>';
   const [data, zoneList] = await Promise.all([api('/api/beds'), api('/api/zones')]);
-
   const zoneOptions = `<option value="">No zone</option>` + zoneList.map(z=>`<option value="${z.id}">${z.name}</option>`).join('');
-
   main.innerHTML = `
     <div class="page-header">
       <div><div class="page-title">Beds</div><div class="page-subtitle">Garden bed grid layout</div></div>
@@ -394,7 +469,7 @@ async function beds() {
     <div class="panel">
       <div class="panel-head"><span class="panel-title">Add bed</span></div>
       <div class="form-grid">
-        <div class="form-group"><label>Name</label><input id="b-name" placeholder="e.g. Raised bed A"></div>
+        <div class="form-group"><label>Name *</label><input id="b-name" placeholder="e.g. Raised bed A"></div>
         <div class="form-group"><label>Zone</label><select id="b-zone">${zoneOptions}</select></div>
         <div class="form-group"><label>Rows</label><input id="b-rows" type="number" min="1" value="4"></div>
         <div class="form-group"><label>Cols</label><input id="b-cols" type="number" min="1" value="4"></div>
@@ -404,7 +479,7 @@ async function beds() {
     </div>
     <div class="panel">
       <div class="panel-head"><span class="panel-title">${data.length} beds</span></div>
-      <div class="panel-body">${bedsTable(data)}</div>
+      ${bedsTable(data)}
     </div>`;
 }
 
@@ -415,13 +490,10 @@ function bedsTable(data) {
     <tbody>${data.map(b=>`<tr>
       <td>${b.name}</td>
       <td>${b.zone_name||'—'}</td>
-      <td style="color:var(--text3)">${b.rows}×${b.cols}</td>
+      <td style="color:var(--muted)">${b.rows}×${b.cols}</td>
       <td style="color:var(--text2)">${b.notes||''}</td>
-      <td><div class="tbl-actions">
-        <button class="btn btn-sm btn-danger" onclick="deleteBed(${b.id},'${b.name}')">Delete</button>
-      </div></td>
-    </tr>`).join('')}</tbody>
-  </table>`;
+      <td><button class="btn btn-sm btn-danger" onclick="deleteBed(${b.id},'${b.name}')">Delete</button></td>
+    </tr>`).join('')}</tbody></table>`;
 }
 
 async function createBed() {
@@ -430,17 +502,15 @@ async function createBed() {
   const rows = parseInt(document.getElementById('b-rows').value);
   const cols = parseInt(document.getElementById('b-cols').value);
   const notes = document.getElementById('b-notes').value.trim();
-  if (!name || !rows || !cols) { toast('Name, rows, and cols required', true); return; }
-  await api('/api/beds', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, zone_id, rows, cols, notes: notes||null})});
-  toast('Bed added');
-  beds();
+  if (!name || !rows || !cols) { toast('Name, rows and cols required', true); return; }
+  await api('/api/beds', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, zone_id, rows, cols, notes:notes||null})});
+  toast('Bed added'); beds();
 }
 
 async function deleteBed(id, name) {
   if (!await confirm('Delete bed', `Delete "${name}"? Plants in this bed will be unlinked.`)) return;
   await api(`/api/beds/${id}`, {method:'DELETE'});
-  toast('Bed deleted');
-  beds();
+  toast('Bed deleted'); beds();
 }
 
 // ════════════════════════
@@ -450,7 +520,6 @@ async function containers() {
   const main = document.getElementById('main-content');
   main.innerHTML = '<div class="loading">Loading…</div>';
   const data = await api('/api/containers');
-
   main.innerHTML = `
     <div class="page-header">
       <div><div class="page-title">Containers</div><div class="page-subtitle">Pots, planters, grow bags</div></div>
@@ -458,7 +527,7 @@ async function containers() {
     <div class="panel">
       <div class="panel-head"><span class="panel-title">Add container</span></div>
       <div class="form-grid">
-        <div class="form-group"><label>Name</label><input id="c-name" placeholder="e.g. Big terracotta pot"></div>
+        <div class="form-group"><label>Name *</label><input id="c-name" placeholder="e.g. Big terracotta pot"></div>
         <div class="form-group"><label>Type</label><input id="c-type" placeholder="pot / bag / box"></div>
         <div class="form-group"><label>Size (gallons)</label><input id="c-size" type="number" step="0.5" placeholder="e.g. 5"></div>
         <div class="form-group"><label>Notes</label><input id="c-notes" placeholder="Optional"></div>
@@ -467,7 +536,7 @@ async function containers() {
     </div>
     <div class="panel">
       <div class="panel-head"><span class="panel-title">${data.length} containers</span></div>
-      <div class="panel-body">${containersTable(data)}</div>
+      ${containersTable(data)}
     </div>`;
 }
 
@@ -481,8 +550,7 @@ function containersTable(data) {
       <td>${c.size_gallons||'—'}</td>
       <td style="color:var(--text2)">${c.notes||''}</td>
       <td><button class="btn btn-sm btn-danger" onclick="deleteContainer(${c.id},'${c.name}')">Delete</button></td>
-    </tr>`).join('')}</tbody>
-  </table>`;
+    </tr>`).join('')}</tbody></table>`;
 }
 
 async function createContainer() {
@@ -491,32 +559,25 @@ async function createContainer() {
   const size_gallons = parseFloat(document.getElementById('c-size').value)||null;
   const notes = document.getElementById('c-notes').value.trim();
   if (!name) { toast('Name required', true); return; }
-  await api('/api/containers', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, type: type||null, size_gallons, notes: notes||null})});
-  toast('Container added');
-  containers();
+  await api('/api/containers', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, type:type||null, size_gallons, notes:notes||null})});
+  toast('Container added'); containers();
 }
 
 async function deleteContainer(id, name) {
   if (!await confirm('Delete container', `Delete "${name}"? Plants will be unlinked.`)) return;
   await api(`/api/containers/${id}`, {method:'DELETE'});
-  toast('Container deleted');
-  containers();
+  toast('Container deleted'); containers();
 }
 
 // ════════════════════════
 // PLANTS
 // ════════════════════════
-let _beds = [], _containers = [];
-
 async function plants() {
   const main = document.getElementById('main-content');
   main.innerHTML = '<div class="loading">Loading…</div>';
   const [data, bedList, contList] = await Promise.all([api('/api/plants'), api('/api/beds'), api('/api/containers')]);
-  _beds = bedList; _containers = contList;
-
   const bedOptions = `<option value="">None</option>` + bedList.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
   const contOptions = `<option value="">None</option>` + contList.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
-
   main.innerHTML = `
     <div class="page-header">
       <div><div class="page-title">Plants</div><div class="page-subtitle">All plants in your garden</div></div>
@@ -525,7 +586,7 @@ async function plants() {
       <div class="panel-head"><span class="panel-title">Add plant</span></div>
       <div class="form-grid">
         <div class="form-group"><label>Name *</label><input id="p-name" placeholder="e.g. Tomato"></div>
-        <div class="form-group"><label>Variety</label><input id="p-variety" placeholder="e.g. Cherry"></div>
+        <div class="form-group"><label>Variety</label><input id="p-variety" placeholder="e.g. Cherokee Purple"></div>
         <div class="form-group"><label>Bed</label><select id="p-bed" onchange="onBedChange()">${bedOptions}</select></div>
         <div class="form-group"><label>Container</label><select id="p-container">${contOptions}</select></div>
         <div class="form-group" id="p-row-group" style="display:none"><label>Row</label><input id="p-row" type="number" min="0" placeholder="0"></div>
@@ -537,7 +598,7 @@ async function plants() {
     </div>
     <div class="panel">
       <div class="panel-head"><span class="panel-title">${data.length} plants</span></div>
-      <div class="panel-body">${plantsTable(data)}</div>
+      ${plantsTable(data)}
     </div>`;
 }
 
@@ -555,12 +616,11 @@ function plantsTable(data) {
     <tbody>${data.map(p=>`<tr>
       <td>${p.name}</td>
       <td style="color:var(--text2)">${p.variety||'—'}</td>
-      <td style="color:var(--text3)">${p.bed_id ? `Bed #${p.bed_id} [${p.row},${p.col}]` : p.container_id ? `Container #${p.container_id}` : '—'}</td>
-      <td style="color:var(--text3)">${fmtDate(p.planted)}</td>
+      <td style="color:var(--muted)">${p.bed_id ? `Bed #${p.bed_id} [${p.row},${p.col}]` : p.container_id ? `Container #${p.container_id}` : '—'}</td>
+      <td style="color:var(--muted)">${fmtDate(p.planted)}</td>
       <td style="color:var(--text2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.notes||''}</td>
       <td><button class="btn btn-sm btn-danger" onclick="deletePlant(${p.id},'${p.name}')">Delete</button></td>
-    </tr>`).join('')}</tbody>
-  </table>`;
+    </tr>`).join('')}</tbody></table>`;
 }
 
 async function createPlant() {
@@ -573,16 +633,14 @@ async function createPlant() {
   const planted = document.getElementById('p-planted').value || null;
   const notes = document.getElementById('p-notes').value.trim();
   if (!name) { toast('Name required', true); return; }
-  await api('/api/plants', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, variety: variety||null, bed_id, container_id, row, col, planted, notes: notes||null})});
-  toast('Plant added');
-  plants();
+  await api('/api/plants', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, variety:variety||null, bed_id, container_id, row, col, planted, notes:notes||null})});
+  toast('Plant added'); plants();
 }
 
 async function deletePlant(id, name) {
   if (!await confirm('Delete plant', `Delete "${name}"? Watering logs and schedule will also be removed.`)) return;
   await api(`/api/plants/${id}`, {method:'DELETE'});
-  toast('Plant deleted');
-  plants();
+  toast('Plant deleted'); plants();
 }
 
 // ════════════════════════
@@ -592,12 +650,10 @@ async function schedules() {
   const main = document.getElementById('main-content');
   main.innerHTML = '<div class="loading">Loading…</div>';
   const [data, plantList] = await Promise.all([api('/api/schedules'), api('/api/plants')]);
-
   const plantOptions = `<option value="">Select plant</option>` + plantList.map(p=>`<option value="${p.id}">${p.name}${p.variety?' ('+p.variety+')':''}</option>`).join('');
-
   main.innerHTML = `
     <div class="page-header">
-      <div><div class="page-title">Schedules</div><div class="page-subtitle">Watering intervals</div></div>
+      <div><div class="page-title">Schedules</div><div class="page-subtitle">Watering intervals per plant</div></div>
     </div>
     <div class="panel">
       <div class="panel-head"><span class="panel-title">Add schedule</span></div>
@@ -610,7 +666,7 @@ async function schedules() {
     </div>
     <div class="panel">
       <div class="panel-head"><span class="panel-title">${data.length} schedules</span></div>
-      <div class="panel-body">${schedulesTable(data)}</div>
+      ${schedulesTable(data)}
     </div>`;
 }
 
@@ -621,11 +677,10 @@ function schedulesTable(data) {
     <tbody>${data.map(s=>`<tr>
       <td>${s.plant_name}</td>
       <td>${s.interval_days}d</td>
-      <td>${fmtDate(s.last_watered)}</td>
-      <td>${fmtDate(s.next_due)}</td>
+      <td style="color:var(--muted)">${fmtDate(s.last_watered)}</td>
+      <td style="color:var(--muted)">${fmtDate(s.next_due)}</td>
       <td><button class="btn btn-sm btn-danger" onclick="deleteSchedule(${s.id},'${s.plant_name}')">Delete</button></td>
-    </tr>`).join('')}</tbody>
-  </table>`;
+    </tr>`).join('')}</tbody></table>`;
 }
 
 async function createSchedule() {
@@ -634,15 +689,13 @@ async function createSchedule() {
   const last_watered = document.getElementById('s-last').value || null;
   if (!plant_id || !interval_days) { toast('Plant and interval required', true); return; }
   await api('/api/schedules', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({plant_id, interval_days, last_watered})});
-  toast('Schedule added');
-  schedules();
+  toast('Schedule added'); schedules();
 }
 
 async function deleteSchedule(id, name) {
   if (!await confirm('Delete schedule', `Remove schedule for "${name}"?`)) return;
   await api(`/api/schedules/${id}`, {method:'DELETE'});
-  toast('Schedule deleted');
-  schedules();
+  toast('Schedule deleted'); schedules();
 }
 
 // ════════════════════════
@@ -652,7 +705,6 @@ async function journal() {
   const main = document.getElementById('main-content');
   main.innerHTML = '<div class="loading">Loading…</div>';
   const data = await api('/api/journal');
-
   main.innerHTML = `
     <div class="page-header">
       <div><div class="page-title">Journal</div><div class="page-subtitle">${data.length} entries</div></div>
@@ -668,19 +720,19 @@ async function journal() {
     </div>
     <div class="panel">
       <div class="panel-head"><span class="panel-title">${data.length} entries</span></div>
-      <div class="panel-body">
+      <div>
         ${data.length === 0 ? '<div class="empty">No entries yet</div>' :
           data.map(e=>`
-          <div style="padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start">
-            <div style="flex:1">
-              <div style="display:flex;gap:10px;align-items:center;margin-bottom:4px">
-                <span style="font-size:10px;color:var(--text3)">${fmtDate(e.created)}</span>
-                ${e.tags ? e.tags.split(',').map(t=>`<span style="font-size:9px;padding:1px 6px;border-radius:2px;background:var(--bg3);border:1px solid var(--border);color:var(--text3)">${t.trim()}</span>`).join('') : ''}
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;">
+            <div style="flex:1;">
+              <div style="display:flex;gap:10px;align-items:center;margin-bottom:4px;">
+                <span style="font-size:0.72rem;color:var(--muted);">${fmtDate(e.created)}</span>
+                ${e.tags ? e.tags.split(',').map(t=>`<span style="font-size:0.65rem;padding:1px 7px;border-radius:99px;background:var(--bg3);border:1px solid var(--border);color:var(--muted);">${t.trim()}</span>`).join('') : ''}
               </div>
-              ${e.title ? `<div style="font-weight:500;margin-bottom:4px">${e.title}</div>` : ''}
-              <div style="color:var(--text2);font-size:11px;line-height:1.55">${e.body}</div>
+              ${e.title ? `<div style="font-weight:500;margin-bottom:4px;font-size:0.9rem;">${e.title}</div>` : ''}
+              <div style="color:var(--text2);font-size:0.82rem;line-height:1.55;">${e.body}</div>
             </div>
-            <button class="btn btn-sm btn-danger" style="margin-left:16px;flex-shrink:0" onclick="deleteEntry(${e.id})">Delete</button>
+            <button class="btn btn-sm btn-danger" style="margin-left:16px;flex-shrink:0;" onclick="deleteEntry(${e.id})">Delete</button>
           </div>`).join('')
         }
       </div>
@@ -692,16 +744,14 @@ async function createEntry() {
   const body = document.getElementById('j-body').value.trim();
   const tags = document.getElementById('j-tags').value.trim();
   if (!body) { toast('Body required', true); return; }
-  await api('/api/journal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title: title||null, body, tags: tags||null})});
-  toast('Entry saved');
-  journal();
+  await api('/api/journal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:title||null, body, tags:tags||null})});
+  toast('Entry saved'); journal();
 }
 
 async function deleteEntry(id) {
   if (!await confirm('Delete entry', 'Delete this journal entry?')) return;
   await api(`/api/journal/${id}`, {method:'DELETE'});
-  toast('Entry deleted');
-  journal();
+  toast('Entry deleted'); journal();
 }
 
 // ── init ──

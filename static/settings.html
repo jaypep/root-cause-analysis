@@ -6,9 +6,9 @@
   <title>Root Cause Analysis — Settings</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
       --bg:        #f4f7f0;
       --bg2:       #eaf0e4;
@@ -22,8 +22,6 @@
       --green-dim: #5a8a46;
       --amber:     #8a6a10;
       --red:       #8a3a2a;
-      --blue:      #2a5c7a;
-      --blue-dim:  #1a3c5a;
       --surface:   #eaf0e4;
       --muted:     #6b8f5a;
       --radius:    16px;
@@ -41,26 +39,10 @@
       --green-dim: #4a7a28;
       --amber:     #d4942a;
       --red:       #c0443a;
-      --blue:      #4a90a4;
-      --blue-dim:  #2d5f70;
       --surface:   #182417;
       --muted:     #6a8060;
       --radius:    16px;
     }
-    .theme-toggle {
-      background: transparent;
-      border: 1px solid var(--border2);
-      color: var(--text2);
-      font-size: 14px;
-      width: 30px; height: 30px;
-      border-radius: 6px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: all 0.15s;
-      padding: 0;
-      flex-shrink: 0;
-    }
-    .theme-toggle:hover { background: var(--border); color: var(--text); }
 
     body {
       font-family: 'DM Sans', sans-serif;
@@ -68,34 +50,55 @@
       color: var(--text);
       height: 100dvh;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto 1fr;
       overflow: hidden;
     }
 
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 28px;
-      border-bottom: 1px solid var(--border);
-    }
 
-    header h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.3rem;
-      font-weight: 500;
-      color: var(--green);
-    }
+
+
+
+
 
     main {
-      padding: 28px;
       overflow-y: auto;
+      padding: 24px 28px;
       display: flex;
       flex-direction: column;
-      gap: 20px;
-      max-width: 640px;
+      gap: 0;
     }
 
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    .tab {
+      padding: 10px 22px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s;
+      background: none;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--green); border-bottom-color: var(--green); }
+
+    /* Tab panels */
+    .tab-panel { display: none; flex-direction: column; gap: 20px; max-width: 640px; }
+    .tab-panel.active { display: flex; }
+
+    /* Section cards */
     .section {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -119,16 +122,14 @@
     .section-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 
     .field { display: flex; flex-direction: column; gap: 6px; }
-
     .field label {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 500;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
-
-    .field input {
+    .field input, .field select {
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -140,19 +141,19 @@
       transition: border-color 0.15s;
       outline: none;
     }
-
-    .field input:focus { border-color: var(--green-dim); }
+    .field input:focus, .field select:focus { border-color: var(--green-dim); }
+    .field select option { background: var(--surface); }
 
     .field-hint {
       font-size: 0.72rem;
       color: var(--muted);
       line-height: 1.5;
     }
-
     .field-hint a { color: var(--green); text-decoration: none; }
     .field-hint a:hover { text-decoration: underline; }
 
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 
     .actions { display: flex; align-items: center; gap: 12px; }
 
@@ -168,14 +169,10 @@
       cursor: pointer;
       transition: background 0.15s;
     }
-    .btn-save:hover { background: var(--green); }
+    .btn-save:hover  { background: var(--green); }
     .btn-save:active { transform: scale(0.97); }
 
-    .status {
-      font-size: 0.8rem;
-      color: var(--muted);
-      transition: opacity 0.3s;
-    }
+    .status { font-size: 0.8rem; color: var(--muted); }
     .status.ok  { color: var(--green); }
     .status.err { color: var(--red); }
 
@@ -183,149 +180,335 @@
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 14px 16px;
-      font-size: 0.82rem;
+      padding: 12px 16px;
+      font-size: 0.8rem;
       color: var(--muted);
-      line-height: 1.6;
+      line-height: 1.7;
     }
-
     .preview-box span { color: var(--text); font-weight: 500; }
 
-    footer {
-      display: flex;
-      gap: 12px;
-      padding: 12px 28px;
-      border-top: 1px solid var(--border);
-    }
 
+
+
+
+  
+    /* ── Shared header ── */
+    #site-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 12px;
+    }
+    .site-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem;
+      font-weight: 500;
+      color: var(--green);
+      white-space: nowrap;
+    }
     .nav-btn {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 10px;
       color: var(--muted);
       font-family: 'DM Sans', sans-serif;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       font-weight: 500;
-      padding: 10px 22px;
+      padding: 8px 16px;
       cursor: pointer;
       text-decoration: none;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      transition: border-color 0.15s, color 0.15s;
+      gap: 6px;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      white-space: nowrap;
     }
-    .nav-btn:hover { border-color: var(--green-dim); color: var(--text); }
+    .nav-btn:hover { border-color: var(--border2); color: var(--text); }
+    .nav-active {
+      border-color: var(--green) !important;
+      color: var(--green) !important;
+      background: var(--bg2) !important;
+    }
+
   </style>
-  <script src="/static/theme.js"></script>
+  <script src="/static/theme.js?v=2" defer></script>
 </head>
 <body>
 
-<header>
-  <h1>🌱 Settings</h1>
-  <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></button>
-</header>
+<header id="site-header"></header>
 
 <main>
-  <div class="section">
-    <div class="section-header">
-      <h2>Weather station</h2>
-    </div>
-    <div class="section-body">
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('weather', this)">🌤 Weather</button>
+    <button class="tab" onclick="switchTab('garden', this)">🌱 Garden Planning</button>
+  </div>
 
-      <div class="field">
-        <label>ICAO station ID</label>
-        <input type="text" id="weather-station" placeholder="e.g. KROG" maxlength="10">
+  <!-- Weather tab -->
+  <div class="tab-panel active" id="tab-weather">
+    <div class="section">
+      <div class="section-header"><h2>Weather station</h2></div>
+      <div class="section-body">
+        <div class="field">
+          <label>ICAO station ID</label>
+          <input type="text" id="weather-station" placeholder="e.g. KROG" maxlength="10">
+          <div class="field-hint">
+            4-letter ICAO code for your nearest airport weather station.
+            Find yours at <a href="https://www.weather.gov" target="_blank">weather.gov</a>
+            — enter your zip and look for "Current conditions at".
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Latitude</label>
+            <input type="text" id="weather-lat" placeholder="e.g. 36.3726">
+          </div>
+          <div class="field">
+            <label>Longitude</label>
+            <input type="text" id="weather-lon" placeholder="e.g. -94.1069">
+          </div>
+        </div>
         <div class="field-hint">
-          4-letter ICAO code for your nearest airport weather station.
-          Find yours at <a href="https://www.weather.gov" target="_blank">weather.gov</a>
-          — enter your zip code and look for "Current conditions at".
+          Used for rainfall data from Open-Meteo. Right-click your location on
+          <a href="https://maps.google.com" target="_blank">Google Maps</a> to get coordinates.
+        </div>
+        <div class="preview-box" id="weather-preview">Loading…</div>
+        <div class="actions">
+          <button class="btn-save" onclick="saveSettings()">Save</button>
+          <span class="status" id="weather-status"></span>
         </div>
       </div>
+    </div>
+  </div>
 
-      <div class="row">
+  <!-- Garden planning tab -->
+  <div class="tab-panel" id="tab-garden">
+    <div class="section">
+      <div class="section-header"><h2>Garden planning</h2></div>
+      <div class="section-body">
+        <div class="row3">
+          <div class="field">
+            <label>Garden year</label>
+            <input type="number" id="garden-year" placeholder="e.g. 2026" min="2020" max="2099">
+          </div>
+          <div class="field">
+            <label>Spring season</label>
+            <input type="text" id="spring-season" placeholder="e.g. Mar–Jun">
+            <div class="field-hint">Your local spring growing window</div>
+          </div>
+          <div class="field">
+            <label>Fall season</label>
+            <input type="text" id="fall-season" placeholder="e.g. Sep–Nov">
+            <div class="field-hint">Your local fall growing window</div>
+          </div>
+        </div>
+
         <div class="field">
-          <label>Latitude</label>
-          <input type="text" id="weather-lat" placeholder="e.g. 36.3726">
+          <label>Frost dates</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;">
+            <div class="field">
+              <label>Last spring frost</label>
+              <input type="date" id="last-frost">
+            </div>
+            <div class="field">
+              <label>First fall frost</label>
+              <input type="date" id="first-frost">
+            </div>
+            <button class="btn-save" onclick="detectFrostDates()" id="frost-detect-btn" style="white-space:nowrap;">
+              🌡 Auto-detect
+            </button>
+          </div>
+          <div class="field-hint" id="frost-hint">
+            Averaged from 10 years of historical data via Open-Meteo. Uses your lat/lon from the Weather tab.
+          </div>
         </div>
+
         <div class="field">
-          <label>Longitude</label>
-          <input type="text" id="weather-lon" placeholder="e.g. -94.1069">
+          <label>USDA growing zone</label>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <select id="growing-zone" style="flex:1;">
+              <option value="">Select zone…</option>
+              <option value="3a">3a</option><option value="3b">3b</option>
+              <option value="4a">4a</option><option value="4b">4b</option>
+              <option value="5a">5a</option><option value="5b">5b</option>
+              <option value="6a">6a</option><option value="6b">6b</option>
+              <option value="7a">7a</option><option value="7b">7b</option>
+              <option value="8a">8a</option><option value="8b">8b</option>
+              <option value="9a">9a</option><option value="9b">9b</option>
+              <option value="10a">10a</option><option value="10b">10b</option>
+              <option value="11a">11a</option><option value="11b">11b</option>
+            </select>
+            <button class="btn-save" onclick="lookupZone()" id="zone-lookup-btn" style="white-space:nowrap;padding:12px 16px;">
+              🌍 Auto-detect
+            </button>
+          </div>
+          <div class="field-hint" id="zone-hint">
+            Uses your lat/lon from the Weather tab. Or find your zone manually at <a href="https://planthardiness.ars.usda.gov" target="_blank">planthardiness.ars.usda.gov</a>
+          </div>
         </div>
-      </div>
 
-      <div class="field-hint">
-        Latitude and longitude are used for rainfall data from Open-Meteo.
-        Find your coordinates by right-clicking your location on
-        <a href="https://maps.google.com" target="_blank">Google Maps</a>.
-      </div>
-
-      <div class="preview-box" id="preview">
-        Loading current settings…
-      </div>
-
-      <div class="actions">
-        <button class="btn-save" onclick="saveSettings()">Save settings</button>
-        <span class="status" id="status"></span>
+        <div class="preview-box" id="garden-preview">Loading…</div>
+        <div class="actions">
+          <button class="btn-save" onclick="saveSettings()">Save</button>
+          <span class="status" id="garden-status"></span>
+        </div>
       </div>
     </div>
   </div>
 </main>
 
-<footer>
-  <a class="nav-btn" href="/">← Dashboard</a>
-  <a class="nav-btn" href="/manage">⚙ Manage</a>
-</footer>
+
 
 <script>
-  async function loadSettings() {
-    const data = await fetch('/api/settings').then(r => r.json());
-    document.getElementById('weather-station').value = data.weather_station;
-    document.getElementById('weather-lat').value     = data.weather_lat;
-    document.getElementById('weather-lon').value     = data.weather_lon;
-    updatePreview(data);
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
   }
 
-  function updatePreview(data) {
-    document.getElementById('preview').innerHTML =
+  function updatePreviews(data) {
+    document.getElementById('weather-preview').innerHTML =
       `Station: <span>${data.weather_station}</span> &nbsp;·&nbsp; ` +
       `Lat: <span>${data.weather_lat}</span> &nbsp;·&nbsp; ` +
       `Lon: <span>${data.weather_lon}</span>`;
+
+    const zone   = data.growing_zone  || '—';
+    const year   = data.garden_year   || '—';
+    const spring = data.spring_season || '—';
+    const fall   = data.fall_season   || '—';
+    const lf     = data.last_frost    ? new Date(data.last_frost + 'T12:00:00').toLocaleDateString([], {month:'short', day:'numeric'}) : '—';
+    const ff     = data.first_frost   ? new Date(data.first_frost + 'T12:00:00').toLocaleDateString([], {month:'short', day:'numeric'}) : '—';
+
+    document.getElementById('garden-preview').innerHTML =
+      `Year: <span>${year}</span> &nbsp;·&nbsp; Zone: <span>${zone}</span><br>` +
+      `Spring: <span>${spring}</span> &nbsp;·&nbsp; Fall: <span>${fall}</span><br>` +
+      `Last frost: <span>${lf}</span> &nbsp;·&nbsp; First frost: <span>${ff}</span>`;
+  }
+
+  async function detectFrostDates() {
+    const btn  = document.getElementById('frost-detect-btn');
+    const hint = document.getElementById('frost-hint');
+    btn.textContent = '⏳ Analyzing 10 years…';
+    btn.disabled = true;
+
+    try {
+      const data = await fetch('/api/frost-dates').then(r => r.json());
+      if (data.detail) throw new Error(data.detail);
+
+      if (data.last_spring_frost) {
+        document.getElementById('last-frost').value = data.last_spring_frost;
+      }
+      if (data.first_fall_frost) {
+        document.getElementById('first-frost').value = data.first_fall_frost;
+      }
+
+      const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString([], { month: 'long', day: 'numeric' });
+      hint.innerHTML =
+        `Detected from ${data.years_analyzed} years of historical data. ` +
+        `Last spring frost: <strong>${fmt(data.last_spring_frost)}</strong> · ` +
+        `First fall frost: <strong>${fmt(data.first_fall_frost)}</strong>. ` +
+        `<em>Save to keep these.</em>`;
+      btn.textContent = '✓ Detected';
+    } catch (e) {
+      hint.innerHTML = `<span style="color:var(--red)">Detection failed: ${e.message}. Make sure lat/lon are saved in the Weather tab.</span>`;
+      btn.textContent = '🌡 Auto-detect';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function lookupZone() {
+    const btn  = document.getElementById('zone-lookup-btn');
+    const hint = document.getElementById('zone-hint');
+    btn.textContent = '⏳ Looking up…';
+    btn.disabled = true;
+
+    try {
+      const data = await fetch('/api/growing-zone').then(r => r.json());
+      if (data.detail) throw new Error(data.detail);
+
+      // Set the dropdown
+      const select = document.getElementById('growing-zone');
+      const zone = data.zone.toLowerCase();
+      select.value = zone;
+
+      hint.innerHTML = `Detected zone <strong>${data.zone}</strong> (${data.temperature_range}) ` +
+        `for ${data.city}, ${data.state} (ZIP ${data.zipcode}). ` +
+        `<em>Save to keep this.</em>`;
+      btn.textContent = '✓ Detected';
+    } catch (e) {
+      hint.innerHTML = `<span style="color:var(--red)">Lookup failed: ${e.message}. Try setting your lat/lon in the Weather tab first.</span>`;
+      btn.textContent = '🌍 Auto-detect';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function loadSettings() {
+    const data = await fetch('/api/settings').then(r => r.json());
+    document.getElementById('weather-station').value = data.weather_station || '';
+    document.getElementById('weather-lat').value     = data.weather_lat     || '';
+    document.getElementById('weather-lon').value     = data.weather_lon     || '';
+    document.getElementById('garden-year').value     = data.garden_year     || '';
+    document.getElementById('spring-season').value   = data.spring_season   || '';
+    document.getElementById('fall-season').value     = data.fall_season     || '';
+    document.getElementById('growing-zone').value    = data.growing_zone    || '';
+    document.getElementById('last-frost').value      = data.last_frost      || '';
+    document.getElementById('first-frost').value     = data.first_frost     || '';
+    updatePreviews(data);
   }
 
   async function saveSettings() {
     const station = document.getElementById('weather-station').value.trim().toUpperCase();
     const lat     = document.getElementById('weather-lat').value.trim();
     const lon     = document.getElementById('weather-lon').value.trim();
-    const status  = document.getElementById('status');
 
     if (!station || !lat || !lon) {
-      status.textContent = 'All fields are required.';
-      status.className = 'status err';
+      showStatus('weather-status', 'Station, lat and lon are required.', true);
+      return;
+    }
+    if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lon))) {
+      showStatus('weather-status', 'Lat and lon must be numbers.', true);
       return;
     }
 
-    if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lon))) {
-      status.textContent = 'Latitude and longitude must be numbers.';
-      status.className = 'status err';
-      return;
-    }
+    const body = {
+      weather_station: station,
+      weather_lat:     lat,
+      weather_lon:     lon,
+      garden_year:     document.getElementById('garden-year').value.trim(),
+      spring_season:   document.getElementById('spring-season').value.trim(),
+      fall_season:     document.getElementById('fall-season').value.trim(),
+      growing_zone:    document.getElementById('growing-zone').value,
+      last_frost:      document.getElementById('last-frost').value || null,
+      first_frost:     document.getElementById('first-frost').value || null,
+    };
 
     const resp = await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ weather_station: station, weather_lat: lat, weather_lon: lon })
+      body: JSON.stringify(body)
     });
 
     if (resp.ok) {
-      const data = await resp.json();
-      updatePreview(data);
-      status.textContent = 'Saved ✓';
-      status.className = 'status ok';
-      setTimeout(() => { status.textContent = ''; status.className = 'status'; }, 3000);
+      updatePreviews(body);
+      showStatus('weather-status', 'Saved ✓', false);
+      showStatus('garden-status', 'Saved ✓', false);
     } else {
-      status.textContent = 'Save failed — check the server logs.';
-      status.className = 'status err';
+      showStatus('weather-status', 'Save failed.', true);
+      showStatus('garden-status', 'Save failed.', true);
     }
+  }
+
+  function showStatus(id, msg, isErr) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = 'status ' + (isErr ? 'err' : 'ok');
+    setTimeout(() => { el.textContent = ''; el.className = 'status'; }, 3000);
   }
 
   loadSettings();

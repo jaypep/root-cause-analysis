@@ -47,20 +47,7 @@
       --muted:     #6a8060;
       --radius:    16px;
     }
-    .theme-toggle {
-      background: transparent;
-      border: 1px solid var(--border2);
-      color: var(--text2);
-      font-size: 14px;
-      width: 30px; height: 30px;
-      border-radius: 6px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: all 0.15s;
-      padding: 0;
-      flex-shrink: 0;
-    }
-    .theme-toggle:hover { background: var(--border); color: var(--text); }
+
 
     body {
       font-family: 'DM Sans', sans-serif;
@@ -68,27 +55,15 @@
       color: var(--text);
       height: 100dvh;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto 1fr;
       overflow: hidden;
     }
 
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 28px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
 
-    header h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.3rem;
-      font-weight: 500;
-      color: var(--green);
-    }
 
-    #clock { font-size: 1.4rem; font-weight: 300; letter-spacing: 0.05em; }
+
+
+
     #date  { font-size: 0.75rem; color: var(--muted); text-align: right; margin-top: 2px; }
 
     /* Main area */
@@ -195,7 +170,7 @@
     /* Right: rainfall chart */
     .wx-rainfall {
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto 1fr;
       padding: 20px 24px 16px;
       gap: 12px;
       min-height: 0;
@@ -303,23 +278,8 @@
       flex-shrink: 0;
     }
 
-    .nav-btn {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      color: var(--muted);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 0.85rem;
-      font-weight: 500;
-      padding: 10px 22px;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      transition: border-color 0.15s, color 0.15s;
-    }
-    .nav-btn:hover { border-color: var(--green-dim); color: var(--text); }
+
+
 
     .empty { color: var(--muted); font-size: 0.82rem; padding: 20px; text-align: center; }
 
@@ -377,19 +337,55 @@
     .badge-auto     { background: var(--green-dim); color: #fff; }
 
     .type-icon { font-size: 1rem; flex-shrink: 0; }
+  
+    /* ── Shared header ── */
+    #site-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 12px;
+    }
+    .site-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem;
+      font-weight: 500;
+      color: var(--green);
+      white-space: nowrap;
+    }
+    .nav-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 8px 16px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+    .nav-btn:hover { border-color: var(--border2); color: var(--text); }
+    .nav-active {
+      border-color: var(--green) !important;
+      color: var(--green) !important;
+      background: var(--bg2) !important;
+    }
+
   </style>
-  <script src="/static/theme.js"></script>
+  
+  <script src="/static/theme.js?v=2" defer></script>
 </head>
 <body>
 
-<header>
-  <h1>🌱 Root Cause Analysis</h1>
-  <div>
-    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></button>
-    <div id="clock">--:--</div>
-    <div id="date"></div>
-  </div>
-</header>
+<header id="site-header"></header>
 
 <main>
   <!-- Stats row -->
@@ -407,8 +403,8 @@
       <div class="stat-label">Overdue</div>
     </div>
     <div class="stat-card">
-      <div class="stat-value" id="stat-crops">—</div>
-      <div class="stat-label">Crop types</div>
+      <div class="stat-value" id="stat-seeds">0</div>
+      <div class="stat-label">Seeds in inventory</div>
     </div>
   </div>
 
@@ -471,22 +467,9 @@
   </div>
 </main>
 
-<footer>
-  <a class="nav-btn" href="/manage">⚙ Manage</a>
-  <a class="nav-btn" href="/settings">⚙ Settings</a>
-</footer>
+
 
 <script>
-  // Clock
-  function tick() {
-    const now = new Date();
-    document.getElementById('clock').textContent =
-      now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    document.getElementById('date').textContent =
-      now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
-  }
-  tick();
-  setInterval(tick, 1000);
 
   function wxIcon(desc) {
     if (!desc) return '🌡';
@@ -563,12 +546,11 @@
   }
 
   async function loadGardenData() {
-    const [plants, beds, schedules, crops] = await Promise.all([
+    const [plants, beds, schedules] = await Promise.all([
       fetch('/api/plants').then(r => r.json()),
       fetch('/api/beds').then(r => r.json()),
       fetch('/api/schedules').then(r => r.json()),
-      fetch('/api/crops').then(r => r.json()),
-    ]);
+      ]);
 
     const today = new Date();
     const overdue = schedules.filter(s => {
@@ -579,7 +561,6 @@
     document.getElementById('stat-plants').textContent  = plants.length;
     document.getElementById('stat-beds').textContent    = beds.length;
     document.getElementById('stat-overdue').textContent = overdue;
-    document.getElementById('stat-crops').textContent   = crops.length;
   }
 
   async function loadWeather() {
@@ -654,8 +635,17 @@
   loadWeather();
   syncAndLoadTasks();
   setInterval(loadGardenData, 60000);
-  setInterval(loadWeather, 600000);
-  setInterval(syncAndLoadTasks, 300000);
+  setInterval(loadWeather, 1800000); // 30 min
+  setInterval(syncAndLoadTasks, 21600000); // 6 hours
+
+  // Daily reload at 3am — keeps the display healthy on long-running wall mounts
+  (function scheduleDailyReload() {
+    const now = new Date();
+    const next3am = new Date(now);
+    next3am.setHours(3, 0, 0, 0);
+    if (next3am <= now) next3am.setDate(next3am.getDate() + 1);
+    setTimeout(() => location.reload(), next3am - now);
+  })();
 </script>
 </body>
 </html>

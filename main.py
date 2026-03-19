@@ -706,9 +706,11 @@ def get_weather():
 # ---------------------------------------------------------------------------
 
 @app.get("/api/tasks")
-def list_tasks(include_done: bool = False):
+def list_tasks(include_done: bool = False, done_only: bool = False):
     conn = get_db()
-    if include_done:
+    if done_only:
+        rows = conn.execute("SELECT * FROM tasks WHERE done=1 ORDER BY done_at DESC").fetchall()
+    elif include_done:
         rows = conn.execute("SELECT * FROM tasks ORDER BY done ASC, due_date ASC").fetchall()
     else:
         rows = conn.execute("SELECT * FROM tasks WHERE done=0 ORDER BY due_date ASC").fetchall()
@@ -837,6 +839,145 @@ def sync_weather_tasks():
     return {"action": action, "due_date": due, "total_rain_inches": round(total_rain, 2), "last_rain": last_rain_date}
 
 # ---------------------------------------------------------------------------
+# Growing zone lookup
+# ---------------------------------------------------------------------------
+
+@app.get("/api/growing-zone")
+def lookup_growing_zone():
+    conn = get_db()
+    lat = get_setting(conn, "weather_lat", WEATHER_LAT_DEFAULT)
+    lon = get_setting(conn, "weather_lon", WEATHER_LON_DEFAULT)
+    conn.close()
+
+    try:
+        # Step 1: NWS points -> get forecast zone which includes ZIP-level info
+        points = nws_get(f"https://api.weather.gov/points/{lat},{lon}")
+        props = points.get("properties", {})
+
+        # NWS returns a relativeLocation with city/state but not ZIP
+        # Use the forecastZone URL to get county/state, then build ZIP lookup
+        # Better: use the county FIPS from relativeLocation to hit phzmapi by zip
+        # Simplest: reverse geocode with nominatim (OSM, free, no key)
+        city  = props.get("relativeLocation", {}).get("properties", {}).get("city", "")
+        state = props.get("relativeLocation", {}).get("properties", {}).get("state", "")
+
+        # Step 2: Nominatim reverse geocode to get ZIP
+        nom_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
+        nom_req = urllib.request.Request(nom_url, headers={"User-Agent": "root-cause-analysis/1.0"})
+        with urllib.request.urlopen(nom_req, timeout=8) as resp:
+            nom_data = json.loads(resp.read())
+
+        zipcode = nom_data.get("address", {}).get("postcode", "").split("-")[0]
+        if not zipcode:
+            raise HTTPException(status_code=404, detail="Could not determine ZIP code from coordinates")
+
+        # Step 3: phzmapi.org lookup by ZIP
+        zone_req = urllib.request.Request(
+            f"https://phzmapi.org/{zipcode}.json",
+            headers={"User-Agent": "root-cause-analysis/1.0"}
+        )
+        with urllib.request.urlopen(zone_req, timeout=8) as resp:
+            zone_data = json.loads(resp.read())
+
+        zone = zone_data.get("zone", "")
+        temp_range = zone_data.get("temperature_range", "")
+
+        return {
+            "zone": zone,
+            "temperature_range": temp_range,
+            "zipcode": zipcode,
+            "city": city,
+            "state": state,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Zone lookup failed: {e}")
+
+# ---------------------------------------------------------------------------
+# Frost date detection
+# ---------------------------------------------------------------------------
+
+@app.get("/api/frost-dates")
+def detect_frost_dates():
+    conn = get_db()
+    lat = get_setting(conn, "weather_lat", WEATHER_LAT_DEFAULT)
+    lon = get_setting(conn, "weather_lon", WEATHER_LON_DEFAULT)
+    conn.close()
+
+    from datetime import date, timedelta
+
+    # Pull 10 years of daily min temps from Open-Meteo historical API
+    end_year   = date.today().year - 1          # last full year
+    start_year = end_year - 9                   # 10 years back
+    start_date = f"{start_year}-01-01"
+    end_date   = f"{end_year}-12-31"
+
+    try:
+        url = (
+            f"https://archive-api.open-meteo.com/v1/archive"
+            f"?latitude={lat}&longitude={lon}"
+            f"&start_date={start_date}&end_date={end_date}"
+            f"&daily=temperature_2m_min"
+            f"&temperature_unit=fahrenheit"
+            f"&timezone=America%2FChicago"
+        )
+        data = nws_get(url)
+        times = data["daily"]["time"]
+        temps = data["daily"]["temperature_2m_min"]
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Historical data fetch failed: {e}")
+
+    # Group freeze days by year
+    # Last spring frost = last day in Jan-Jun where min <= 32
+    # First fall frost  = first day in Jul-Dec where min <= 32
+    spring_frosts = {}  # year -> latest freeze date in spring
+    fall_frosts   = {}  # year -> earliest freeze date in fall
+
+    for day_str, temp in zip(times, temps):
+        if temp is None:
+            continue
+        d = datetime.strptime(day_str, "%Y-%m-%d")
+        year  = d.year
+        month = d.month
+
+        if temp <= 32.0:
+            if 1 <= month <= 6:
+                # Spring freeze — keep the latest one
+                if year not in spring_frosts or d > spring_frosts[year]:
+                    spring_frosts[year] = d
+            elif 7 <= month <= 12:
+                # Fall freeze — keep the earliest one
+                if year not in fall_frosts or d < fall_frosts[year]:
+                    fall_frosts[year] = d
+
+    def avg_day_of_year(date_dict):
+        if not date_dict:
+            return None
+        doys = [d.timetuple().tm_yday for d in date_dict.values()]
+        avg_doy = round(sum(doys) / len(doys))
+        # Convert average DOY back to a month/day using a non-leap year
+        ref = datetime(2001, 1, 1) + timedelta(days=avg_doy - 1)
+        return ref.strftime("%m-%d")
+
+    last_spring = avg_day_of_year(spring_frosts)
+    first_fall  = avg_day_of_year(fall_frosts)
+
+    # Format as current-year dates for the date picker
+    current_year = date.today().year
+    last_spring_date  = f"{current_year}-{last_spring}" if last_spring else None
+    first_fall_date   = f"{current_year}-{first_fall}"  if first_fall  else None
+
+    return {
+        "last_spring_frost": last_spring_date,
+        "first_fall_frost":  first_fall_date,
+        "years_analyzed":    len(spring_frosts),
+        "spring_samples":    len(spring_frosts),
+        "fall_samples":      len(fall_frosts),
+    }
+
+# ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------
 
@@ -844,31 +985,52 @@ class SettingsIn(BaseModel):
     weather_station: str
     weather_lat: str
     weather_lon: str
+    garden_year: Optional[str] = None
+    spring_season: Optional[str] = None
+    fall_season: Optional[str] = None
+    growing_zone: Optional[str] = None
+    last_frost: Optional[str] = None
+    first_frost: Optional[str] = None
 
 @app.get("/api/settings")
 def get_settings():
     conn = get_db()
-    station = get_setting(conn, "weather_station", WEATHER_STATION_DEFAULT)
-    lat     = get_setting(conn, "weather_lat",     WEATHER_LAT_DEFAULT)
-    lon     = get_setting(conn, "weather_lon",     WEATHER_LON_DEFAULT)
+    result = {
+        "weather_station": get_setting(conn, "weather_station", WEATHER_STATION_DEFAULT),
+        "weather_lat":     get_setting(conn, "weather_lat",     WEATHER_LAT_DEFAULT),
+        "weather_lon":     get_setting(conn, "weather_lon",     WEATHER_LON_DEFAULT),
+        "garden_year":     get_setting(conn, "garden_year",     ""),
+        "spring_season":   get_setting(conn, "spring_season",   ""),
+        "fall_season":     get_setting(conn, "fall_season",     ""),
+        "growing_zone":    get_setting(conn, "growing_zone",    ""),
+        "last_frost":      get_setting(conn, "last_frost",      ""),
+        "first_frost":     get_setting(conn, "first_frost",     ""),
+    }
     conn.close()
-    return {"weather_station": station, "weather_lat": lat, "weather_lon": lon}
+    return result
 
 @app.put("/api/settings")
 def update_settings(s: SettingsIn):
     conn = get_db()
-    for key, val in [
+    pairs = [
         ("weather_station", s.weather_station),
         ("weather_lat",     s.weather_lat),
         ("weather_lon",     s.weather_lon),
-    ]:
+        ("garden_year",     s.garden_year or ""),
+        ("spring_season",   s.spring_season or ""),
+        ("fall_season",     s.fall_season or ""),
+        ("growing_zone",    s.growing_zone or ""),
+        ("last_frost",      s.last_frost or ""),
+        ("first_frost",     s.first_frost or ""),
+    ]
+    for key, val in pairs:
         conn.execute(
             "INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             (key, val)
         )
     conn.commit()
     conn.close()
-    return {"weather_station": s.weather_station, "weather_lat": s.weather_lat, "weather_lon": s.weather_lon}
+    return dict(pairs)
 
 # ---------------------------------------------------------------------------
 # Serve frontend

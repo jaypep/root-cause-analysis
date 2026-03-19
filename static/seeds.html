@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Root Cause Analysis — Seeds</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #f4f7f0;
+      --bg2:       #eaf0e4;
+      --bg3:       #dde8d5;
+      --border:    #c5d8b8;
+      --border2:   #8db87a;
+      --text:      #1e2d17;
+      --text2:     #3d5c2e;
+      --text3:     #6b8f5a;
+      --green:     #3a7a28;
+      --green-dim: #5a8a46;
+      --amber:     #8a6a10;
+      --red:       #8a3a2a;
+      --blue:      #2a5c7a;
+      --surface:   #eaf0e4;
+      --muted:     #6b8f5a;
+      --dim:       rgba(90,138,70,0.08);
+      --radius:    16px;
+    }
+    :root.dark {
+      --bg:        #0d1109;
+      --bg2:       #141a10;
+      --bg3:       #1c2417;
+      --border:    #2a3822;
+      --border2:   #3d5430;
+      --text:      #c8d5b9;
+      --text2:     #7a9068;
+      --text3:     #4a5e3a;
+      --green:     #8db87a;
+      --green-dim: #4a7a28;
+      --amber:     #d4942a;
+      --red:       #c0443a;
+      --blue:      #4a90a4;
+      --surface:   #182417;
+      --muted:     #6a8060;
+      --dim:       rgba(141,184,122,0.07);
+      --radius:    16px;
+    }
+
+    /* Shared header */
+    #site-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 28px; border-bottom: 1px solid var(--border);
+      flex-shrink: 0; gap: 12px; background: var(--bg2);
+    }
+    .site-title {
+      font-family: 'Playfair Display', serif; font-size: 1.2rem;
+      font-weight: 500; color: var(--green); white-space: nowrap;
+    }
+    .nav-btn {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--muted); font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem; font-weight: 500; padding: 8px 16px;
+      cursor: pointer; text-decoration: none; display: inline-flex;
+      align-items: center; gap: 6px;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+    .nav-btn:hover { border-color: var(--border2); color: var(--text); }
+    .nav-active { border-color: var(--green) !important; color: var(--green) !important; background: var(--bg2) !important; }
+
+    body {
+      font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text);
+      height: 100dvh; display: grid; grid-template-rows: auto 1fr; overflow: hidden;
+    }
+
+    main {
+      display: grid; grid-template-columns: 360px 1fr;
+      gap: 16px; padding: 16px 28px; overflow: hidden;
+    }
+
+    .left-col { display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+    .right-col { display: flex; flex-direction: column; overflow: hidden; }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 0; border-bottom: 1px solid var(--border); flex-shrink: 0;
+      display: flex;
+    }
+
+    .tab {
+      padding: 12px 20px; font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem; font-weight: 500; color: var(--muted);
+      background: none; border: none; border-bottom: 2px solid transparent;
+      cursor: pointer; transition: color 0.15s, border-color 0.15s;
+      margin-bottom: -1px;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--green); border-bottom-color: var(--green); }
+
+    .panel-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; }
+
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label {
+      font-size: 0.65rem; font-weight: 500; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .field input, .field select {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif;
+      font-size: 0.88rem; padding: 8px 10px; width: 100%; outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus { border-color: var(--green-dim); }
+    .field select option { background: var(--bg2); }
+
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .btn-save {
+      background: var(--green-dim); border: none; border-radius: 8px; color: #fff;
+      font-family: 'DM Sans', sans-serif; font-size: 0.88rem; font-weight: 500;
+      padding: 10px; cursor: pointer; width: 100%; transition: background 0.15s;
+    }
+    .btn-save:hover { background: var(--green); }
+
+    /* Inventory list */
+    #seed-list { overflow-y: auto; flex: 1; }
+
+    .seed-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .seed-row:last-child { border-bottom: none; }
+    .seed-row:hover { background: var(--dim); }
+
+    .seed-info { flex: 1; min-width: 0; }
+    .seed-name { font-size: 0.9rem; font-weight: 500; }
+    .seed-meta { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+    .viability-badge {
+      font-size: 0.62rem; font-weight: 500; padding: 3px 8px;
+      border-radius: 99px; flex-shrink: 0;
+    }
+    .viable-yes  { background: var(--green-dim); color: #fff; }
+    .viable-warn { background: var(--amber);     color: #fff; }
+    .viable-no   { background: var(--red);       color: #fff; }
+    .viable-unk  { background: var(--border);    color: var(--muted); }
+
+    .btn-del {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 0.9rem; padding: 4px;
+      opacity: 0; transition: opacity 0.15s, color 0.15s; flex-shrink: 0;
+    }
+    .seed-row:hover .btn-del { opacity: 1; }
+    .btn-del:hover { color: var(--red); }
+
+
+  </style>
+  <script src="/static/theme.js?v=2"></script>
+</head>
+<body>
+
+<header id="site-header"></header>
+
+<main>
+  <!-- Left col: add + inventory -->
+  <div class="left-col">
+
+    <!-- Add seed -->
+    <div class="panel" style="flex-shrink:0;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:0.65rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);">Add to inventory</div>
+      <div class="panel-body" style="overflow:visible;">
+        <div class="field">
+          <label>Crop</label>
+          <select id="s-crop" onchange="onCropChange()"><option value="">Select crop…</option></select>
+        </div>
+        <div class="field">
+          <label>Variety</label>
+          <select id="s-variety" onchange="onVarietyChange()">
+            <option value="">Select crop first…</option>
+          </select>
+          <input type="hidden" id="s-crop-id">
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>Quantity</label>
+            <input type="number" id="s-qty" value="1" min="0.1" step="0.1">
+          </div>
+          <div class="field">
+            <label>Unit</label>
+            <select id="s-unit">
+              <option value="packet">packet</option>
+              <option value="seeds">seeds</option>
+              <option value="corms">corms</option>
+              <option value="bulbs">bulbs</option>
+              <option value="cloves">cloves</option>
+              <option value="crowns">crowns</option>
+              <option value="sets">sets</option>
+              <option value="plants">plants</option>
+              <option value="tubers">tubers</option>
+              <option value="oz">oz</option>
+              <option value="g">g</option>
+              <option value="lb">lb</option>
+            </select>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>Seed lot year</label>
+            <input type="number" id="s-yr-bought" placeholder="e.g. 2024" min="2000" max="2099">
+          </div>
+        </div>
+        <div class="field">
+          <label>Source</label>
+          <input type="text" id="s-source" placeholder="e.g. Baker Creek, saved">
+        </div>
+        <div class="field">
+          <label>Notes</label>
+          <input type="text" id="s-notes" placeholder="Optional">
+        </div>
+        <button class="btn-save" onclick="addSeed()">Add to inventory</button>
+      </div>
+    </div>
+
+
+  </div>
+
+  <!-- Right col: full inventory table -->
+  <div class="right-col panel">
+    <div style="padding:0;border-bottom:1px solid var(--border);display:flex;flex-shrink:0;">
+      <button class="tab active" id="tab-all" onclick="setInvTab('all')">All seeds</button>
+      <button class="tab" id="tab-low" onclick="setInvTab('low')">Low viability</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 80px 100px 90px 120px 80px auto;padding:8px 16px;border-bottom:1px solid var(--border);font-size:0.62rem;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);background:var(--bg2);flex-shrink:0;">
+      <div>Crop / variety</div>
+      <div>Qty</div>
+      <div>Lot year</div>
+      <div>Viability</div>
+      <div>Source</div>
+      <div>Status</div>
+      <div></div>
+    </div>
+    <div id="seed-table" style="overflow-y:auto;flex:1;"><div class="empty">Loading…</div></div>
+  </div>
+</main>
+
+<script>
+  let allSeeds = [], invTab = 'all';
+
+  // ── Inventory tabs ──
+  function setInvTab(tab) {
+    invTab = tab;
+    document.getElementById('tab-all').classList.toggle('active', tab === 'all');
+    document.getElementById('tab-low').classList.toggle('active', tab === 'low');
+    renderInventory();
+  }
+
+  function viabilityBadge(seed) {
+    if (seed.viable === null) return '<span class="viability-badge viable-unk">unknown age</span>';
+    var age = seed.age_years, max = seed.viability_years;
+    if (age > max)    return '<span class="viability-badge viable-no">expired (' + age + 'yr)</span>';
+    if (age >= max-1) return '<span class="viability-badge viable-warn">aging (' + age + '/' + max + 'yr)</span>';
+    return '<span class="viability-badge viable-yes">' + age + '/' + max + 'yr</span>';
+  }
+
+  function renderInventory() {
+    var el = document.getElementById('seed-table');
+    var seeds = invTab === 'low'
+      ? allSeeds.filter(function(s) { return s.viable === false || (s.age_years !== null && s.viability_years && s.age_years >= s.viability_years - 1); })
+      : allSeeds;
+
+    if (!seeds.length) {
+      el.innerHTML = '<div class="empty">' + (invTab === 'low' ? 'No low-viability seeds 🎉' : 'No seeds in inventory yet.') + '</div>';
+      return;
+    }
+
+    var GRID = 'display:grid;grid-template-columns:1fr 80px 100px 90px 120px 80px auto;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.82rem;';
+
+    el.innerHTML = seeds.map(function(s) {
+      var name = s.crop_name || 'Unknown crop';
+      var variety = s.display_variety || '';
+      return '<div style="' + GRID + '" onmouseover="this.style.background=\'var(--dim)\'" onmouseout="this.style.background=\'\'">'+
+        '<div><span style="font-weight:500;">' + name + '</span>' + (variety ? ' <span style="color:var(--muted);font-size:0.75rem;">— ' + variety + '</span>' : '') + '</div>' +
+        '<div style="color:var(--text2);">' + s.quantity + ' ' + s.unit + '</div>' +
+        '<div style="color:var(--muted);">' + (s.seed_lot || '—') + '</div>' +
+        '<div style="color:var(--muted);">' + (s.viability_years ? s.viability_years + ' yr' : '—') + '</div>' +
+        '<div style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (s.source || '—') + '</div>' +
+        '<div>' + viabilityBadge(s) + '</div>' +
+        '<div><button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.9rem;padding:4px;" onmouseover="this.style.color=\'var(--red)\'" onmouseout="this.style.color=\'var(--muted)\';" onclick="deleteSeed(' + s.id + ')">✕</button></div>' +
+      '</div>';
+    }).join('');
+  }
+
+  // ── Load crops dropdown ──
+  var cropList = [];
+
+  function onCropChange() {
+    var id = parseInt(document.getElementById('s-crop').value);
+    var sel = document.getElementById('s-variety');
+    var hiddenId = document.getElementById('s-crop-id');
+    var selected = cropList.find(function(c) { return c.id === id; });
+    if (!selected) {
+      sel.innerHTML = '<option value="">Select crop first…</option>';
+      hiddenId.value = '';
+      return;
+    }
+    var cropName = selected.name;
+    var matches = cropList.filter(function(c) { return c.name === cropName && c.variety; });
+    if (!matches.length) {
+      sel.innerHTML = '<option value="" data-crop-id="' + id + '">No specific variety</option>';
+      hiddenId.value = id;
+    } else {
+      sel.innerHTML = '<option value="" data-crop-id="">Select variety…</option>' +
+        matches.map(function(c) {
+          return '<option value="' + c.variety + '" data-crop-id="' + c.id + '">' + c.variety + '</option>';
+        }).join('');
+      hiddenId.value = '';
+    }
+  }
+
+  function onVarietyChange() {
+    var sel = document.getElementById('s-variety');
+    var opt = sel.options[sel.selectedIndex];
+    document.getElementById('s-crop-id').value = opt ? (opt.getAttribute('data-crop-id') || '') : '';
+  }
+
+  async function loadCrops() {
+    cropList = await fetch('/api/crops').then(function(r) { return r.json(); });
+    var sel = document.getElementById('s-crop');
+    var seen = {};
+    var uniqueCrops = cropList.filter(function(c) {
+      if (seen[c.name]) return false;
+      seen[c.name] = true;
+      return true;
+    });
+    sel.innerHTML = '<option value="">Select crop…</option>' +
+      uniqueCrops.map(function(c) {
+        return '<option value="' + c.id + '">' + c.name + '</option>';
+      }).join('');
+  }
+
+  async function loadSeeds() {
+    allSeeds = await fetch('/api/seeds').then(function(r) { return r.json(); });
+    renderInventory();
+  }
+
+  // ── Add seed ──
+  async function addSeed() {
+    var crop_id = parseInt(document.getElementById('s-crop-id').value) || parseInt(document.getElementById('s-crop').value) || null;
+    var variety = document.getElementById('s-variety').value || null;
+    var quantity = parseFloat(document.getElementById('s-qty').value) || 1;
+    var unit = document.getElementById('s-unit').value;
+    var seed_lot = parseInt(document.getElementById('s-yr-bought').value) || null;
+
+    var source = document.getElementById('s-source').value.trim() || null;
+    var notes  = document.getElementById('s-notes').value.trim() || null;
+
+    await fetch('/api/seeds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ crop_id, variety, quantity, unit, seed_lot, source, notes })
+    });
+
+    document.getElementById('s-crop').value = '';
+    document.getElementById('s-variety').value = '';
+    document.getElementById('s-qty').value = '1';
+    document.getElementById('s-yr-bought').value = '';
+    document.getElementById('s-source').value = '';
+    document.getElementById('s-notes').value = '';
+
+    await loadSeeds();
+  }
+
+  // ── Delete seed ──
+  async function deleteSeed(id) {
+    await fetch('/api/seeds/' + id, { method: 'DELETE' });
+    await loadSeeds();
+  }
+
+  loadCrops();
+  loadSeeds();
+</script>
+</body>
+</html>

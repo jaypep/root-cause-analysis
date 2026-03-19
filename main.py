@@ -53,12 +53,25 @@ def init_db():
         );
 
         CREATE TABLE IF NOT EXISTS crops (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            name             TEXT NOT NULL,
-            variety          TEXT,
-            days_to_harvest  INTEGER,
-            notes            TEXT,
-            created          TEXT DEFAULT (datetime('now'))
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            name                 TEXT NOT NULL,
+            variety              TEXT,
+            days_to_harvest      INTEGER,
+            weeks_to_transplant  INTEGER,
+            notes                TEXT,
+            created              TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS seeds (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            crop_id         INTEGER REFERENCES crops(id) ON DELETE SET NULL,
+            variety         TEXT,
+            quantity        REAL NOT NULL DEFAULT 1,
+            unit            TEXT NOT NULL DEFAULT 'packet',
+            seed_lot        INTEGER,
+            source          TEXT,
+            notes           TEXT,
+            created         TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS plants (
@@ -145,6 +158,16 @@ class CropIn(BaseModel):
     name: str
     variety: Optional[str] = None
     days_to_harvest: Optional[int] = None
+    weeks_to_transplant: Optional[int] = None
+    notes: Optional[str] = None
+
+class SeedIn(BaseModel):
+    crop_id: Optional[int] = None
+    variety: Optional[str] = None
+    quantity: float = 1
+    unit: str = "packet"
+    seed_lot: Optional[int] = None
+    source: Optional[str] = None
     notes: Optional[str] = None
 
 class PlantIn(BaseModel):
@@ -356,8 +379,8 @@ def list_crops():
 def create_crop(crop: CropIn):
     conn = get_db()
     cur = conn.execute(
-        "INSERT INTO crops (name, variety, days_to_harvest, notes) VALUES (?,?,?,?)",
-        (crop.name, crop.variety, crop.days_to_harvest, crop.notes)
+        "INSERT INTO crops (name, variety, days_to_harvest, weeks_to_transplant, notes) VALUES (?,?,?,?,?)",
+        (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.notes)
     )
     conn.commit()
     row = conn.execute("SELECT * FROM crops WHERE id=?", (cur.lastrowid,)).fetchone()
@@ -368,8 +391,8 @@ def create_crop(crop: CropIn):
 def update_crop(crop_id: int, crop: CropIn):
     conn = get_db()
     conn.execute(
-        "UPDATE crops SET name=?, variety=?, days_to_harvest=?, notes=? WHERE id=?",
-        (crop.name, crop.variety, crop.days_to_harvest, crop.notes, crop_id)
+        "UPDATE crops SET name=?, variety=?, days_to_harvest=?, weeks_to_transplant=?, notes=? WHERE id=?",
+        (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.notes, crop_id)
     )
     conn.commit()
     row = conn.execute("SELECT * FROM crops WHERE id=?", (crop_id,)).fetchone()
@@ -839,6 +862,193 @@ def sync_weather_tasks():
     return {"action": action, "due_date": due, "total_rain_inches": round(total_rain, 2), "last_rain": last_rain_date}
 
 # ---------------------------------------------------------------------------
+# Seeds
+# ---------------------------------------------------------------------------
+
+SEED_UNITS = ["packet","seeds","corms","bulbs","cloves","crowns","sets","plants","tubers","oz","g","lb"]
+
+# Default viability in years by crop name keyword
+VIABILITY_DEFAULTS = {
+    "onion":1,"leek":1,"chive":1,
+    "pepper":2,"parsnip":2,"corn":2,"maize":2,
+    "bean":3,"pea":3,"sweet corn":3,
+    "tomato":4,"basil":4,"beet":4,"beetroot":4,"carrot":4,"broccoli":4,"cabbage":4,"kale":4,"chard":4,"spinach":4,
+    "cucumber":5,"melon":5,"squash":5,"pumpkin":5,"zucchini":5,"courgette":5,"lettuce":5,"celery":5,"celeriac":5,
+}
+
+# Default weeks to transplant by crop name keyword
+TRANSPLANT_WEEKS_DEFAULTS = {
+    "pepper":10,"tomato":7,"eggplant":10,"aubergine":10,
+    "broccoli":5,"cabbage":5,"cauliflower":5,"kale":5,"chard":4,"lettuce":4,
+    "celery":10,"celeriac":10,"leek":10,"onion":8,
+    "cucumber":3,"squash":3,"pumpkin":3,"melon":3,"zucchini":3,"courgette":3,
+    "basil":4,
+}
+
+def get_viability(crop_name):
+    name = (crop_name or "").lower()
+    for k, v in VIABILITY_DEFAULTS.items():
+        if k in name:
+            return v
+    return 3  # conservative default
+
+def get_transplant_weeks(crop_name, override=None):
+    if override is not None:
+        return override
+    name = (crop_name or "").lower()
+    for k, v in TRANSPLANT_WEEKS_DEFAULTS.items():
+        if k in name:
+            return v
+    return 0  # direct sow by default
+
+@app.get("/api/seeds")
+def list_seeds():
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT s.*, c.name as crop_name,
+               COALESCE(s.variety, c.variety) as display_variety,
+               c.days_to_harvest, c.weeks_to_transplant
+        FROM seeds s
+        LEFT JOIN crops c ON c.id = s.crop_id
+        ORDER BY c.name, s.created
+    """).fetchall()
+    conn.close()
+    current_year = datetime.now().year
+    result = []
+    for r in rows:
+        d = dict(r)
+        viability = get_viability(d.get("crop_name",""))
+        seed_year = d.get("seed_lot")
+        d["viability_years"] = viability
+        d["age_years"] = (current_year - seed_year) if seed_year else None
+        d["viable"] = (current_year - seed_year) <= viability if seed_year else None
+        result.append(d)
+    return result
+
+@app.post("/api/seeds", status_code=201)
+def create_seed(seed: SeedIn):
+    conn = get_db()
+    cur = conn.execute(
+        "INSERT INTO seeds (crop_id, variety, quantity, unit, seed_lot, source, notes) VALUES (?,?,?,?,?,?,?)",
+        (seed.crop_id, seed.variety, seed.quantity, seed.unit, seed.seed_lot, seed.source, seed.notes)
+    )
+    conn.commit()
+    row = conn.execute("""
+        SELECT s.*, c.name as crop_name FROM seeds s
+        LEFT JOIN crops c ON c.id=s.crop_id WHERE s.id=?
+    """, (cur.lastrowid,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.put("/api/seeds/{seed_id}")
+def update_seed(seed_id: int, seed: SeedIn):
+    conn = get_db()
+    conn.execute(
+        "UPDATE seeds SET crop_id=?, variety=?, quantity=?, unit=?, seed_lot=?, source=?, notes=? WHERE id=?",
+        (seed.crop_id, seed.variety, seed.quantity, seed.unit, seed.seed_lot, seed.source, seed.notes, seed_id)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM seeds WHERE id=?", (seed_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Seed not found")
+    return dict(row)
+
+@app.delete("/api/seeds/{seed_id}", status_code=204)
+def delete_seed(seed_id: int):
+    conn = get_db()
+    conn.execute("DELETE FROM seeds WHERE id=?", (seed_id,))
+    conn.commit()
+    conn.close()
+
+@app.get("/api/seeds/plan")
+def seed_plan():
+    """
+    Returns a planting calendar for all seeds in inventory,
+    calculated from frost dates stored in settings.
+    Both spring and fall plans are returned.
+    """
+    from datetime import date, timedelta
+
+    conn = get_db()
+    last_spring = get_setting(conn, "last_frost", "")
+    first_fall  = get_setting(conn, "first_frost", "")
+
+    seeds = conn.execute("""
+        SELECT s.*, c.name as crop_name,
+               COALESCE(s.variety, c.variety) as display_variety,
+               c.days_to_harvest, c.weeks_to_transplant
+        FROM seeds s
+        LEFT JOIN crops c ON c.id = s.crop_id
+        ORDER BY c.name
+    """).fetchall()
+    conn.close()
+
+    current_year = date.today().year
+
+    def calc_dates(frost_date_str, season):
+        if not frost_date_str:
+            return None
+        try:
+            frost = datetime.strptime(frost_date_str, "%Y-%m-%d").date()
+            # Use current year's frost date
+            frost = frost.replace(year=current_year)
+        except:
+            return None
+
+        plan = []
+        for s in seeds:
+            d = dict(s)
+            crop_name = d.get("crop_name") or "Unknown"
+            dth = d.get("days_to_harvest")
+            if not dth:
+                continue
+
+            weeks = get_transplant_weeks(crop_name, d.get("weeks_to_transplant"))
+            viability = get_viability(crop_name)
+            seed_year = d.get("seed_lot")
+            viable = (current_year - seed_year) <= viability if seed_year else None
+            age = (current_year - seed_year) if seed_year else None
+
+            if season == "spring":
+                # Work backwards from last spring frost
+                sow_outdoors = frost - timedelta(days=dth)
+                sow_indoors  = sow_outdoors - timedelta(weeks=weeks) if weeks else None
+                transplant   = frost if weeks else None
+            else:
+                # Work backwards from first fall frost
+                sow_outdoors = frost - timedelta(days=dth)
+                sow_indoors  = sow_outdoors - timedelta(weeks=weeks) if weeks else None
+                transplant   = frost if weeks else None
+
+            plan.append({
+                "seed_id":       d["id"],
+                "crop_name":     crop_name,
+                "variety":       d.get("display_variety"),
+                "quantity":      d["quantity"],
+                "unit":          d["unit"],
+                "days_to_harvest": dth,
+                "weeks_to_transplant": weeks,
+                "sow_indoors":   sow_indoors.isoformat() if sow_indoors else None,
+                "sow_outdoors":  sow_outdoors.isoformat(),
+                "transplant":    transplant.isoformat() if transplant else None,
+                "harvest_from":  frost.isoformat(),
+                "viable":        viable,
+                "age_years":     age,
+                "viability_years": viability,
+            })
+
+        plan.sort(key=lambda x: x["sow_indoors"] or x["sow_outdoors"])
+        return plan
+
+    return {
+        "spring": calc_dates(last_spring, "spring"),
+        "fall":   calc_dates(first_fall,  "fall"),
+        "last_spring_frost": last_spring,
+        "first_fall_frost":  first_fall,
+    }
+
+# ---------------------------------------------------------------------------
 # Growing zone lookup
 # ---------------------------------------------------------------------------
 
@@ -1049,6 +1259,10 @@ def manage():
 @app.get("/settings")
 def settings_page():
     return FileResponse("static/settings.html")
+
+@app.get("/seeds")
+def seeds_page():
+    return FileResponse("static/seeds.html")
 
 @app.get("/tasks")
 def tasks_page():

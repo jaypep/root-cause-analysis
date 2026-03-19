@@ -33,6 +33,7 @@ function buildHeader() {
       '<span class="site-title">🌱 Root Cause Analysis</span>' +
       navBtn('/', 'Dashboard') +
       navBtn('/tasks', 'Tasks') +
+      navBtn('/seeds', 'Seeds') +
       navBtn('/manage', 'Manage Garden') +
     '</div>' +
     '<div style="display:flex;align-items:center;gap:10px;">' +

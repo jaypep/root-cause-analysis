@@ -546,10 +546,11 @@
   }
 
   async function loadGardenData() {
-    const [plants, beds, schedules] = await Promise.all([
+    const [plants, beds, schedules, seeds] = await Promise.all([
       fetch('/api/plants').then(r => r.json()),
       fetch('/api/beds').then(r => r.json()),
       fetch('/api/schedules').then(r => r.json()),
+      fetch('/api/seeds').then(r => r.json()),
       ]);
 
     const today = new Date();
@@ -561,6 +562,7 @@
     document.getElementById('stat-plants').textContent  = plants.length;
     document.getElementById('stat-beds').textContent    = beds.length;
     document.getElementById('stat-overdue').textContent = overdue;
+    document.getElementById('stat-seeds').textContent   = seeds.length;
   }
 
   async function loadWeather() {

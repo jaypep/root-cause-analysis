@@ -13,7 +13,7 @@
       --bg:        #f4f7f0;
       --bg2:       #eaf0e4;
       --bg3:       #dde8d5;
-      --border:    rgba(141,184,122,0.35);
+      --border:    #c5d8b8;
       --border2:   #8db87a;
       --text:      #1e2d17;
       --text2:     #3d5c2e;
@@ -32,7 +32,7 @@
       --bg:        #0d1109;
       --bg2:       #141a10;
       --bg3:       #1c2417;
-      --border:    rgba(141,184,122,0.18);
+      --border:    #2a3822;
       --border2:   #3d5430;
       --text:      #c8d5b9;
       --text2:     #7a9068;
@@ -62,7 +62,7 @@
     .nav-btn {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 10px; color: var(--muted); font-family: 'DM Sans', sans-serif;
-      font-size: 1rem; font-weight: 500; padding: 11px 22px; min-height: 46px;
+      font-size: 0.95rem; font-weight: 500; padding: 10px 20px; min-height: 44px;
       cursor: pointer; text-decoration: none; display: inline-flex;
       align-items: center; gap: 8px;
       transition: border-color 0.15s, color 0.15s, background 0.15s;
@@ -89,17 +89,17 @@
 
     .stat-card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px; padding: 16px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      border-radius: 14px; padding: 16px 20px;
       display: flex; flex-direction: column; gap: 6px;
     }
 
-    .stat-value { font-size: 3rem; font-weight: 300; line-height: 1; color: var(--text); }
-    .stat-label { font-size: 0.9rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .stat-value { font-size: 2.6rem; font-weight: 300; line-height: 1; color: var(--text); }
+    .stat-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
 
     /* Tasks panel */
     .tasks-panel {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); box-shadow: 0 1px 4px rgba(0,0,0,0.06); display: flex; flex-direction: column; overflow: hidden;
+      border-radius: var(--radius); display: flex; flex-direction: column; overflow: hidden;
     }
 
     .task-row {
@@ -123,11 +123,11 @@
     .type-icon { font-size: 1.3rem; flex-shrink: 0; }
 
     .task-info { flex: 1; min-width: 0; }
-    .task-title { font-size: 1.1rem; font-weight: 500; }
-    .task-sub   { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
+    .task-title { font-size: 1rem; font-weight: 500; }
+    .task-sub   { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
 
     .task-badge {
-      font-size: 0.8rem; font-weight: 500; padding: 5px 12px;
+      font-size: 0.75rem; font-weight: 500; padding: 4px 10px;
       border-radius: 99px; flex-shrink: 0;
     }
     .badge-overdue  { background: var(--red);       color: #fff; }
@@ -138,7 +138,7 @@
     /* Weather panel */
     .weather-panel {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); box-shadow: 0 1px 4px rgba(0,0,0,0.06); display: grid;
+      border-radius: var(--radius); display: grid;
       grid-template-columns: 220px 1fr; overflow: hidden; min-height: 0;
     }
 
@@ -149,7 +149,7 @@
 
     .wx-icon  { font-size: 3.2rem; line-height: 1; }
     .wx-temp  { font-size: 3.2rem; font-weight: 300; line-height: 1; }
-    .wx-desc  { font-size: 1.05rem; color: var(--muted); line-height: 1.4; margin-top: 2px; }
+    .wx-desc  { font-size: 0.95rem; color: var(--muted); line-height: 1.4; margin-top: 2px; }
     .wx-meta  { font-size: 0.72rem; color: var(--muted); opacity: 0.6; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px; }
 
     .wx-range { display: flex; gap: 14px; align-items: center; margin-top: 10px; }
@@ -161,8 +161,8 @@
     .wx-wind-row { display: flex; align-items: baseline; gap: 6px; }
     .wx-wind-value { font-size: 1.25rem; font-weight: 300; color: var(--text); }
     .wx-wind-gust  { font-size: 1.25rem; font-weight: 500; color: var(--amber); }
-    .wx-wind-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
-    .wx-wind-dir   { font-size: 0.9rem; color: var(--muted); margin-top: 2px; }
+    .wx-wind-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .wx-wind-dir   { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
 
     /* Rainfall chart */
     .wx-rainfall {
@@ -171,13 +171,13 @@
     }
 
     .wx-rainfall-header { display: flex; align-items: baseline; justify-content: space-between; }
-    .wx-rainfall-title  { font-size: 0.85rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
-    .wx-total           { font-size: 1rem; color: var(--blue); font-weight: 500; }
+    .wx-rainfall-title  { font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+    .wx-total           { font-size: 0.9rem; color: var(--blue); font-weight: 500; }
 
     .rain-chart { display: flex; align-items: flex-end; gap: 8px; min-height: 0; }
 
     .rain-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
-    .rain-amount { font-size: 0.85rem; color: var(--blue); font-weight: 500; min-height: 1.2em; text-align: center; margin-bottom: 4px; }
+    .rain-amount { font-size: 0.8rem; color: var(--blue); font-weight: 500; min-height: 1.2em; text-align: center; margin-bottom: 4px; }
     .rain-amount.zero { color: var(--muted); opacity: 0.4; }
     .rain-bar-area { flex: 1; width: 100%; display: flex; align-items: flex-end; }
     .rain-bar { width: 100%; background: var(--blue-dim); border-radius: 4px 4px 0 0; border: 1px solid var(--blue); border-bottom: none; transition: height 0.5s ease; }
@@ -190,10 +190,10 @@
     .rain-axis  { width: 100%; height: 1px; background: var(--border); }
     .rain-labels { display: flex; gap: 8px; }
     .rain-label-col { flex: 1; text-align: center; }
-    .rain-day-name  { font-size: 0.85rem; color: var(--text); }
-    .rain-day-date  { font-size: 0.78rem; color: var(--muted); margin-top: 1px; }
+    .rain-day-name  { font-size: 0.8rem; color: var(--text); }
+    .rain-day-date  { font-size: 0.7rem; color: var(--muted); margin-top: 1px; }
 
-    .empty { color: var(--muted); font-size: 1rem; padding: 20px; text-align: center; }
+    .empty { color: var(--muted); font-size: 0.9rem; padding: 20px; text-align: center; }
     .overdue-label { color: var(--red); }
     .due-label     { color: var(--amber); }
     .ok-label      { color: var(--muted); }
@@ -228,8 +228,8 @@
   <!-- Tasks panel -->
   <div class="tasks-panel">
     <a href="/tasks" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);text-decoration:none;cursor:pointer;min-height:52px;transition:background 0.15s;" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-      <span style="font-size:0.9rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);">Tasks</span>
-      <span style="font-size:1rem;color:var(--muted);">View all →</span>
+      <span style="font-size:0.8rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);">Tasks</span>
+      <span style="font-size:0.9rem;color:var(--muted);">View all →</span>
     </a>
     <div id="task-list">
       <div class="empty">Loading…</div>

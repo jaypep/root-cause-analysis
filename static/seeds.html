@@ -7,67 +7,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg:        #f4f7f0;
-      --bg2:       #eaf0e4;
-      --bg3:       #dde8d5;
-      --border:    #c5d8b8;
-      --border2:   #8db87a;
-      --text:      #1e2d17;
-      --text2:     #3d5c2e;
-      --text3:     #6b8f5a;
-      --green:     #3a7a28;
-      --green-dim: #5a8a46;
-      --amber:     #8a6a10;
-      --red:       #8a3a2a;
-      --blue:      #2a5c7a;
-      --surface:   #eaf0e4;
-      --muted:     #6b8f5a;
-      --dim:       rgba(90,138,70,0.08);
-      --radius:    16px;
-    }
-    :root.dark {
-      --bg:        #0d1109;
-      --bg2:       #141a10;
-      --bg3:       #1c2417;
-      --border:    #2a3822;
-      --border2:   #3d5430;
-      --text:      #c8d5b9;
-      --text2:     #7a9068;
-      --text3:     #4a5e3a;
-      --green:     #8db87a;
-      --green-dim: #4a7a28;
-      --amber:     #d4942a;
-      --red:       #c0443a;
-      --blue:      #4a90a4;
-      --surface:   #182417;
-      --muted:     #6a8060;
-      --dim:       rgba(141,184,122,0.07);
-      --radius:    16px;
-    }
+    
+    
+    
 
     /* Shared header */
-    #site-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 28px; border-bottom: 1px solid var(--border);
-      flex-shrink: 0; gap: 12px; background: var(--bg2);
-    }
-    .site-title {
-      font-family: 'Playfair Display', serif; font-size: 1.2rem;
-      font-weight: 500; color: var(--green); white-space: nowrap;
-    }
-    .nav-btn {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 10px; color: var(--muted); font-family: 'DM Sans', sans-serif;
-      font-size: 0.82rem; font-weight: 500; padding: 8px 16px;
-      cursor: pointer; text-decoration: none; display: inline-flex;
-      align-items: center; gap: 6px;
-      transition: border-color 0.15s, color 0.15s, background 0.15s;
-      white-space: nowrap;
-    }
-    .nav-btn:hover { border-color: var(--border2); color: var(--text); }
-    .nav-active { border-color: var(--green) !important; color: var(--green) !important; background: var(--bg2) !important; }
+    
+    
+    
+    
+    
 
     body {
       font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text);
@@ -93,8 +42,8 @@
     }
 
     .tab {
-      padding: 12px 20px; font-family: 'DM Sans', sans-serif;
-      font-size: 0.82rem; font-weight: 500; color: var(--muted);
+      padding: 14px 22px; font-family: 'DM Sans', sans-serif;
+      font-size: 1rem; font-weight: 500; color: var(--muted);
       background: none; border: none; border-bottom: 2px solid transparent;
       cursor: pointer; transition: color 0.15s, border-color 0.15s;
       margin-bottom: -1px;
@@ -112,7 +61,7 @@
     .field input, .field select {
       background: var(--bg); border: 1px solid var(--border);
       border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif;
-      font-size: 0.88rem; padding: 8px 10px; width: 100%; outline: none;
+      font-size: 1rem; padding: 11px 12px; width: 100%; outline: none;
       transition: border-color 0.15s;
     }
     .field input:focus, .field select:focus { border-color: var(--green-dim); }
@@ -122,8 +71,8 @@
 
     .btn-save {
       background: var(--green-dim); border: none; border-radius: 8px; color: #fff;
-      font-family: 'DM Sans', sans-serif; font-size: 0.88rem; font-weight: 500;
-      padding: 10px; cursor: pointer; width: 100%; transition: background 0.15s;
+      font-family: 'DM Sans', sans-serif; font-size: 1rem; font-weight: 500;
+      padding: 13px; cursor: pointer; width: 100%; transition: background 0.15s;
     }
     .btn-save:hover { background: var(--green); }
 
@@ -139,11 +88,11 @@
     .seed-row:hover { background: var(--dim); }
 
     .seed-info { flex: 1; min-width: 0; }
-    .seed-name { font-size: 0.9rem; font-weight: 500; }
-    .seed-meta { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .seed-name { font-size: 1rem; font-weight: 500; }
+    .seed-meta { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
 
     .viability-badge {
-      font-size: 0.62rem; font-weight: 500; padding: 3px 8px;
+      font-size: 0.78rem; font-weight: 500; padding: 5px 12px;
       border-radius: 99px; flex-shrink: 0;
     }
     .viable-yes  { background: var(--green-dim); color: #fff; }
@@ -159,9 +108,8 @@
     .seed-row:hover .btn-del { opacity: 1; }
     .btn-del:hover { color: var(--red); }
 
-
   </style>
-  <script src="/static/theme.js?v=2"></script>
+  <script src="/static/theme.js?v=3"></script>
 </head>
 <body>
 
@@ -173,7 +121,7 @@
 
     <!-- Add seed -->
     <div class="panel" style="flex-shrink:0;">
-      <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:0.65rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);">Add to inventory</div>
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;"><span style="font-size:0.65rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);">Add to inventory</span><button class="btn-save" onclick="syncSeedTasks()" id="sync-btn" style="padding:6px 14px;font-size:0.78rem;width:auto;">🗓 Sync tasks</button></div>
       <div class="panel-body" style="overflow:visible;">
         <div class="field">
           <label>Crop</label>
@@ -226,7 +174,6 @@
         <button class="btn-save" onclick="addSeed()">Add to inventory</button>
       </div>
     </div>
-
 
   </div>
 
@@ -294,6 +241,21 @@
         '<div><button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.9rem;padding:4px;" onmouseover="this.style.color=\'var(--red)\'" onmouseout="this.style.color=\'var(--muted)\';" onclick="deleteSeed(' + s.id + ')">✕</button></div>' +
       '</div>';
     }).join('');
+  }
+
+  // ── Sync seed plan tasks ──
+  async function syncSeedTasks() {
+    var btn = document.getElementById('sync-btn');
+    btn.textContent = '⏳ Syncing…';
+    btn.disabled = true;
+    try {
+      var result = await fetch('/api/tasks/seed-plan-sync', { method: 'POST' }).then(function(r) { return r.json(); });
+      btn.textContent = '✓ ' + result.created + ' created';
+      setTimeout(function() { btn.textContent = '🗓 Sync tasks'; btn.disabled = false; }, 2500);
+    } catch(e) {
+      btn.textContent = '✗ Failed';
+      btn.disabled = false;
+    }
   }
 
   // ── Load crops dropdown ──

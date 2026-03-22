@@ -32,7 +32,6 @@ def init_db():
             notes    TEXT,
             created  TEXT DEFAULT (datetime('now'))
         );
-
         CREATE TABLE IF NOT EXISTS beds (
             id       INTEGER PRIMARY KEY AUTOINCREMENT,
             zone_id  INTEGER REFERENCES zones(id) ON DELETE SET NULL,
@@ -42,7 +41,6 @@ def init_db():
             notes    TEXT,
             created  TEXT DEFAULT (datetime('now'))
         );
-
         CREATE TABLE IF NOT EXISTS containers (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             name          TEXT NOT NULL,
@@ -51,17 +49,17 @@ def init_db():
             notes         TEXT,
             created       TEXT DEFAULT (datetime('now'))
         );
-
         CREATE TABLE IF NOT EXISTS crops (
             id                   INTEGER PRIMARY KEY AUTOINCREMENT,
             name                 TEXT NOT NULL,
             variety              TEXT,
             days_to_harvest      INTEGER,
             weeks_to_transplant  INTEGER,
+            succession_weeks     INTEGER,
+            succession_count     INTEGER,
             notes                TEXT,
             created              TEXT DEFAULT (datetime('now'))
         );
-
         CREATE TABLE IF NOT EXISTS seeds (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             crop_id         INTEGER REFERENCES crops(id) ON DELETE SET NULL,
@@ -73,7 +71,6 @@ def init_db():
             notes           TEXT,
             created         TEXT DEFAULT (datetime('now'))
         );
-
         CREATE TABLE IF NOT EXISTS plants (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             crop_id       INTEGER REFERENCES crops(id) ON DELETE RESTRICT,
@@ -88,14 +85,12 @@ def init_db():
             created       TEXT DEFAULT (datetime('now')),
             UNIQUE (bed_id, row, col)
         );
-
         CREATE TABLE IF NOT EXISTS waterings (
             id        INTEGER PRIMARY KEY AUTOINCREMENT,
             plant_id  INTEGER REFERENCES plants(id) ON DELETE CASCADE,
             watered   TEXT DEFAULT (datetime('now')),
             notes     TEXT
         );
-
         CREATE TABLE IF NOT EXISTS schedules (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
             plant_id       INTEGER UNIQUE REFERENCES plants(id) ON DELETE CASCADE,
@@ -103,7 +98,6 @@ def init_db():
             last_watered   TEXT,
             next_due       TEXT
         );
-
         CREATE TABLE IF NOT EXISTS journal (
             id       INTEGER PRIMARY KEY AUTOINCREMENT,
             title    TEXT,
@@ -111,12 +105,10 @@ def init_db():
             tags     TEXT,
             created  TEXT DEFAULT (datetime('now'))
         );
-
         CREATE TABLE IF NOT EXISTS settings (
             key    TEXT PRIMARY KEY,
             value  TEXT NOT NULL
         );
-
         CREATE TABLE IF NOT EXISTS tasks (
             id        INTEGER PRIMARY KEY AUTOINCREMENT,
             type      TEXT NOT NULL,
@@ -131,7 +123,98 @@ def init_db():
     conn.commit()
     conn.close()
 
+def migrate_db():
+    """Apply any schema changes to an existing DB without wiping data."""
+    conn = get_db()
+    
+    # Helper to check if a column exists
+    def has_column(table, column):
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        return any(r["name"] == column for r in rows)
+    
+    # Helper to check if a table exists
+    def has_table(table):
+        row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
+        ).fetchone()
+        return row is not None
+
+    migrations = []
+
+    # crops table additions
+    if has_table("crops"):
+        if not has_column("crops", "weeks_to_transplant"):
+            migrations.append("ALTER TABLE crops ADD COLUMN weeks_to_transplant INTEGER")
+        if not has_column("crops", "succession_weeks"):
+            migrations.append("ALTER TABLE crops ADD COLUMN succession_weeks INTEGER")
+        if not has_column("crops", "succession_count"):
+            migrations.append("ALTER TABLE crops ADD COLUMN succession_count INTEGER")
+
+    # seeds table additions
+    if has_table("seeds"):
+        if not has_column("seeds", "variety"):
+            migrations.append("ALTER TABLE seeds ADD COLUMN variety TEXT")
+        if not has_column("seeds", "seed_lot"):
+            migrations.append("ALTER TABLE seeds ADD COLUMN seed_lot INTEGER")
+        # rename year_purchased to seed_lot if old column exists
+        if has_column("seeds", "year_purchased") and not has_column("seeds", "seed_lot"):
+            migrations.append("ALTER TABLE seeds RENAME COLUMN year_purchased TO seed_lot")
+        if has_column("seeds", "year_harvested"):
+            pass  # leave it, no harm in keeping old data
+
+    # plants table
+    if has_table("plants"):
+        if not has_column("plants", "crop_id"):
+            migrations.append("ALTER TABLE plants ADD COLUMN crop_id INTEGER REFERENCES crops(id) ON DELETE SET NULL")
+
+    # settings table — created fresh if missing, no migration needed
+    # tasks table — created fresh if missing, no migration needed
+
+    for sql in migrations:
+        try:
+            conn.execute(sql)
+            print(f"Migration applied: {sql}")
+        except Exception as e:
+            print(f"Migration skipped ({e}): {sql}")
+
+    conn.commit()
+    conn.close()
+
+def seed_crops_from_file():
+    """
+    On every startup, upsert crops from seed_crops.json.
+    New entries are inserted, existing ones (matched on name+variety) are left alone.
+    Safe to run repeatedly — never overwrites user data or removes crops.
+    """
+    import json as _json
+    import os as _os
+    seed_file = _os.path.join(_os.path.dirname(__file__), "seed_crops.json")
+    if not _os.path.exists(seed_file):
+        return
+    with open(seed_file) as f:
+        crops_data = _json.load(f)
+    conn = get_db()
+    created = 0
+    for c in crops_data:
+        existing = conn.execute(
+            "SELECT id FROM crops WHERE name=? AND (variety=? OR (variety IS NULL AND ? IS NULL))",
+            (c.get("name"), c.get("variety"), c.get("variety"))
+        ).fetchone()
+        if not existing:
+            conn.execute(
+                "INSERT INTO crops (name, variety, days_to_harvest, weeks_to_transplant, succession_weeks, succession_count, notes) VALUES (?,?,?,?,?,?,?)",
+                (c.get("name"), c.get("variety"), c.get("days_to_harvest"), c.get("weeks_to_transplant"), c.get("succession_weeks"), c.get("succession_count"), c.get("notes"))
+            )
+            created += 1
+    conn.commit()
+    conn.close()
+    if created:
+        print(f"seed_crops.json: added {created} new crops")
+
+
 init_db()
+migrate_db()
+seed_crops_from_file()
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -159,6 +242,8 @@ class CropIn(BaseModel):
     variety: Optional[str] = None
     days_to_harvest: Optional[int] = None
     weeks_to_transplant: Optional[int] = None
+    succession_weeks: Optional[int] = None
+    succession_count: Optional[int] = None
     notes: Optional[str] = None
 
 class SeedIn(BaseModel):
@@ -379,8 +464,8 @@ def list_crops():
 def create_crop(crop: CropIn):
     conn = get_db()
     cur = conn.execute(
-        "INSERT INTO crops (name, variety, days_to_harvest, weeks_to_transplant, notes) VALUES (?,?,?,?,?)",
-        (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.notes)
+        "INSERT INTO crops (name, variety, days_to_harvest, weeks_to_transplant, succession_weeks, succession_count, notes) VALUES (?,?,?,?,?,?,?)",
+        (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.succession_weeks, crop.succession_count, crop.notes)
     )
     conn.commit()
     row = conn.execute("SELECT * FROM crops WHERE id=?", (cur.lastrowid,)).fetchone()
@@ -391,8 +476,8 @@ def create_crop(crop: CropIn):
 def update_crop(crop_id: int, crop: CropIn):
     conn = get_db()
     conn.execute(
-        "UPDATE crops SET name=?, variety=?, days_to_harvest=?, weeks_to_transplant=?, notes=? WHERE id=?",
-        (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.notes, crop_id)
+        "UPDATE crops SET name=?, variety=?, days_to_harvest=?, weeks_to_transplant=?, succession_weeks=?, succession_count=?, notes=? WHERE id=?",
+        (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.succession_weeks, crop.succession_count, crop.notes, crop_id)
     )
     conn.commit()
     row = conn.execute("SELECT * FROM crops WHERE id=?", (crop_id,)).fetchone()
@@ -426,8 +511,8 @@ def bulk_import_crops(crops: list[CropIn]):
             skipped += 1
         else:
             conn.execute(
-                "INSERT INTO crops (name, variety, days_to_harvest, notes) VALUES (?,?,?,?)",
-                (crop.name, crop.variety, crop.days_to_harvest, crop.notes)
+                "INSERT INTO crops (name, variety, days_to_harvest, weeks_to_transplant, succession_weeks, succession_count, notes) VALUES (?,?,?,?,?,?,?)",
+                (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.succession_weeks, crop.succession_count, crop.notes)
             )
             created += 1
     conn.commit()
@@ -1047,6 +1132,129 @@ def seed_plan():
         "last_spring_frost": last_spring,
         "first_fall_frost":  first_fall,
     }
+
+# ---------------------------------------------------------------------------
+# Seed plan task sync
+# ---------------------------------------------------------------------------
+
+@app.post("/api/tasks/seed-plan-sync")
+def seed_plan_sync():
+    """
+    For each unique crop/variety in seed inventory, calculate sow indoors,
+    sow outdoors, and transplant dates for both spring and fall seasons,
+    then upsert tasks. Skips seeds with no days_to_harvest on the crop.
+    Closes tasks whose dates have passed.
+    """
+    from datetime import date, timedelta
+
+    conn = get_db()
+    last_spring = get_setting(conn, "last_frost", "")
+    first_fall  = get_setting(conn, "first_frost", "")
+
+    if not last_spring and not first_fall:
+        conn.close()
+        return {"message": "No frost dates configured — go to Settings → Garden Planning"}
+
+    # Get unique crop/variety combos from inventory
+    seeds = conn.execute("""
+        SELECT DISTINCT
+            COALESCE(s.variety, c.variety) as variety,
+            c.name as crop_name,
+            c.days_to_harvest,
+            c.weeks_to_transplant,
+            c.succession_weeks,
+            c.succession_count
+        FROM seeds s
+        LEFT JOIN crops c ON c.id = s.crop_id
+        WHERE c.days_to_harvest IS NOT NULL
+        ORDER BY c.name, variety
+    """).fetchall()
+
+    current_year = date.today().year
+    today = date.today()
+    created = 0
+    updated = 0
+    closed  = 0
+
+    def upsert_task(task_type, title, due_date_str):
+        nonlocal created, updated, closed
+        due = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+
+        # Close if date has passed
+        if due < today:
+            rows = conn.execute(
+                "SELECT id FROM tasks WHERE type=? AND title=? AND done=0",
+                (task_type, title)
+            ).fetchall()
+            for r in rows:
+                conn.execute(
+                    "UPDATE tasks SET done=1, done_at=? WHERE id=?",
+                    (datetime.now().isoformat(), r["id"])
+                )
+                closed += 1
+            return
+
+        existing = conn.execute(
+            "SELECT id FROM tasks WHERE type=? AND title=? AND done=0",
+            (task_type, title)
+        ).fetchone()
+
+        if existing:
+            conn.execute(
+                "UPDATE tasks SET due_date=? WHERE id=?",
+                (due_date_str, existing["id"])
+            )
+            updated += 1
+        else:
+            conn.execute(
+                "INSERT INTO tasks (type, title, due_date, notes) VALUES (?,?,?,?)",
+                (task_type, title, due_date_str, "Auto-generated from seed inventory")
+            )
+            created += 1
+
+    def calc_and_upsert(frost_str, season_label):
+        if not frost_str:
+            return
+        try:
+            frost = datetime.strptime(frost_str, "%Y-%m-%d").date().replace(year=current_year)
+        except:
+            return
+
+        for s in seeds:
+            crop_name    = s["crop_name"] or "Unknown"
+            variety      = s["variety"] or ""
+            dth          = s["days_to_harvest"]
+            weeks        = get_transplant_weeks(crop_name, s["weeks_to_transplant"])
+            succ_weeks   = s["succession_weeks"]
+            succ_count   = s["succession_count"] or 1
+            base_label   = f"{crop_name}{' — ' + variety if variety else ''} ({season_label})"
+
+            base_sow_outdoors = frost - timedelta(days=dth)
+            base_sow_indoors  = base_sow_outdoors - timedelta(weeks=weeks) if weeks else None
+            base_transplant   = frost if weeks else None
+
+            # Generate succession sow dates
+            count = succ_count if succ_weeks else 1
+            for i in range(count):
+                offset = timedelta(weeks=succ_weeks * i) if succ_weeks else timedelta(0)
+                label  = f"{base_label} #{i+1}" if count > 1 else base_label
+
+                sow_outdoors = base_sow_outdoors + offset
+                sow_indoors  = (base_sow_indoors + offset) if base_sow_indoors else None
+                transplant   = (base_transplant + offset) if base_transplant else None
+
+                if sow_indoors:
+                    upsert_task("sow_indoors", f"Sow indoors: {label}", sow_indoors.isoformat())
+                upsert_task("sow_outdoors", f"Sow outdoors: {label}", sow_outdoors.isoformat())
+                if transplant:
+                    upsert_task("transplant", f"Transplant: {label}", transplant.isoformat())
+
+    calc_and_upsert(last_spring, "Spring")
+    calc_and_upsert(first_fall,  "Fall")
+
+    conn.commit()
+    conn.close()
+    return {"created": created, "updated": updated, "closed": closed}
 
 # ---------------------------------------------------------------------------
 # Growing zone lookup

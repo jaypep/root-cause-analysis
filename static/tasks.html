@@ -6,57 +6,11 @@
   <title>Root Cause Analysis — Tasks</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="/static/theme.js?v=3"></script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg:        #f4f7f0;
-      --bg2:       #eaf0e4;
-      --bg3:       #dde8d5;
-      --border:    #c5d8b8;
-      --border2:   #8db87a;
-      --text:      #1e2d17;
-      --text2:     #3d5c2e;
-      --text3:     #6b8f5a;
-      --green:     #3a7a28;
-      --green-dim: #5a8a46;
-      --amber:     #8a6a10;
-      --red:       #8a3a2a;
-      --blue:      #2a5c7a;
-      --blue-dim:  #1a3c5a;
-      --surface:   #eaf0e4;
-      --muted:     #6b8f5a;
-      --radius:    16px;
-    }
-    :root.dark {
-      --bg:        #0d1109;
-      --bg2:       #141a10;
-      --bg3:       #1c2417;
-      --border:    #2a3822;
-      --border2:   #3d5430;
-      --text:      #c8d5b9;
-      --text2:     #7a9068;
-      --text3:     #4a5e3a;
-      --green:     #8db87a;
-      --green-dim: #4a7a28;
-      --amber:     #d4942a;
-      --red:       #c0443a;
-      --blue:      #4a90a4;
-      --blue-dim:  #2d5f70;
-      --surface:   #182417;
-      --muted:     #6a8060;
-      --radius:    16px;
-    }
-    body {
-      font-family: 'DM Sans', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      height: 100dvh;
-      display: grid;
-      grid-template-rows: auto 1fr;
-      overflow: hidden;
-    }
-
-
+    
+    
+    
 
     main {
       display: grid;
@@ -66,30 +20,6 @@
       overflow: hidden;
     }
 
-    /* Task list */
-    .panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    .panel-header {
-      padding: 12px 18px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-shrink: 0;
-    }
-    .panel-header h2 {
-      font-size: 0.65rem;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--muted);
-    }
     .toggle-done {
       font-size: 0.7rem;
       color: var(--muted);
@@ -107,17 +37,18 @@
       display: flex;
       align-items: center;
       gap: 14px;
-      padding: 14px 18px;
+      padding: 16px 20px;
       border-bottom: 1px solid var(--border);
+      min-height: 56px;
       transition: background 0.15s;
     }
     .task-row:last-child { border-bottom: none; }
     .task-row.is-done { opacity: 0.45; }
 
     .task-check {
-      width: 24px;
-      height: 24px;
-      border-radius: 7px;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
       border: 1.5px solid var(--border);
       background: var(--bg);
       cursor: pointer;
@@ -131,18 +62,18 @@
     .task-check:hover { border-color: var(--green-dim); }
     .task-check.done  { background: var(--green-dim); border-color: var(--green-dim); color: #fff; }
 
-    .type-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .type-icon { font-size: 1.3rem; flex-shrink: 0; }
 
     .task-info { flex: 1; min-width: 0; }
-    .task-title { font-size: 0.95rem; font-weight: 500; }
-    .task-notes { font-size: 0.72rem; color: var(--muted); margin-top: 3px; line-height: 1.4; }
-    .task-done-at { font-size: 0.68rem; color: var(--muted); margin-top: 2px; font-style: italic; }
+    .task-title { font-size: 1.1rem; font-weight: 500; }
+    .task-notes { font-size: 0.85rem; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+    .task-done-at { font-size: 0.78rem; color: var(--muted); margin-top: 2px; font-style: italic; }
 
     .task-badges { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
     .badge {
-      font-size: 0.62rem;
+      font-size: 0.78rem;
       font-weight: 500;
-      padding: 3px 8px;
+      padding: 5px 12px;
       border-radius: 99px;
     }
     .badge-overdue  { background: var(--red);       color: #fff; }
@@ -176,41 +107,15 @@
     }
     .add-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
 
-    .field { display: flex; flex-direction: column; gap: 6px; }
-    .field label {
-      font-size: 0.65rem;
-      font-weight: 500;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-    .field input, .field select, .field textarea {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      color: var(--text);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 0.9rem;
-      padding: 10px 12px;
-      width: 100%;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    .field input:focus,
-    .field select:focus,
-    .field textarea:focus { border-color: var(--green-dim); }
-    .field select option { background: var(--surface); }
-    .field textarea { resize: vertical; min-height: 70px; }
-
     .btn-add {
       background: var(--green-dim);
       border: none;
       border-radius: 10px;
       color: #fff;
       font-family: 'DM Sans', sans-serif;
-      font-size: 0.9rem;
+      font-size: 1rem;
       font-weight: 500;
-      padding: 12px;
+      padding: 14px;
       cursor: pointer;
       width: 100%;
       transition: background 0.15s;
@@ -218,12 +123,10 @@
     .btn-add:hover  { background: var(--green); }
     .btn-add:active { transform: scale(0.97); }
 
-    .empty { color: var(--muted); font-size: 0.82rem; padding: 24px; text-align: center; }
-
     .task-tab {
       padding: 12px 22px;
       font-family: 'DM Sans', sans-serif;
-      font-size: 0.82rem;
+      font-size: 0.95rem;
       font-weight: 500;
       color: var(--muted);
       background: none;
@@ -236,55 +139,17 @@
     .task-tab:hover { color: var(--text); }
     .task-tab-active { color: var(--green) !important; border-bottom-color: var(--green) !important; }
 
-
-
-
   
-    /* ── Shared header ── */
-    #site-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 28px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-      gap: 12px;
-    }
-    .site-title {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.2rem;
-      font-weight: 500;
-      color: var(--green);
-      white-space: nowrap;
-    }
-    .nav-btn {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      color: var(--muted);
-      font-family: 'DM Sans', sans-serif;
-      font-size: 0.82rem;
-      font-weight: 500;
-      padding: 8px 16px;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: border-color 0.15s, color 0.15s, background 0.15s;
-      white-space: nowrap;
-    }
-    .nav-btn:hover { border-color: var(--border2); color: var(--text); }
-    .nav-active {
-      border-color: var(--green) !important;
-      color: var(--green) !important;
-      background: var(--bg2) !important;
-    }
+        
+    
+    
+    
+    
+    
 
   </style>
   
-  <script src="/static/theme.js?v=2" defer></script>
-</head>
+
 <body>
 
 <header id="site-header"></header>
@@ -335,8 +200,6 @@
     </div>
   </div>
 </main>
-
-
 
 <script>
   const TASK_ICONS = {

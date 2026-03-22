@@ -451,6 +451,8 @@ async function containers() {
   const main = document.getElementById('main-content');
   main.innerHTML = '<div class="loading">Loading…</div>';
   const data = await api('/api/containers');
+  const zones = await api('/api/zones');
+  const zoneOpts = zones.map(z => `<option value="${z.id}">${z.name}</option>`).join('');
   main.innerHTML = `
     <div class="page-header">
       <div><div class="page-title">Containers</div><div class="page-subtitle">Pots, planters, grow bags</div></div>
@@ -458,9 +460,11 @@ async function containers() {
     <div class="panel">
       <div class="panel-head"><span class="panel-title">Add container</span></div>
       <div class="form-grid">
+        <div class="form-group"><label>Zone</label><select id="c-zone"><option value="">No zone</option></select></div>
         <div class="form-group"><label>Name *</label><input id="c-name" placeholder="e.g. Big terracotta pot"></div>
         <div class="form-group"><label>Type</label><input id="c-type" placeholder="pot / bag / box"></div>
         <div class="form-group"><label>Size (gallons)</label><input id="c-size" type="number" step="0.5" placeholder="e.g. 5"></div>
+        <div class="form-group"><label>Location</label><input id="c-location" placeholder="e.g. Front patio, Greenhouse"></div>
         <div class="form-group"><label>Notes</label><input id="c-notes" placeholder="Optional"></div>
       </div>
       <div class="form-actions"><button class="btn btn-primary" onclick="createContainer()">Add container</button></div>
@@ -469,16 +473,19 @@ async function containers() {
       <div class="panel-head"><span class="panel-title">${data.length} containers</span></div>
       ${containersTable(data)}
     </div>`;
+  document.getElementById('c-zone').innerHTML = '<option value="">No zone</option>' + zoneOpts;
 }
 
 function containersTable(data) {
   if (!data.length) return '<div class="empty">No containers yet</div>';
   return `<table class="tbl">
-    <thead><tr><th>Name</th><th>Type</th><th>Size (gal)</th><th>Notes</th><th></th></tr></thead>
+    <thead><tr><th>Zone</th><th>Name</th><th>Type</th><th>Size (gal)</th><th>Location</th><th>Notes</th><th></th></tr></thead>
     <tbody>${data.map(c=>`<tr>
+      <td style="color:var(--text2)">${c.zone_name||'—'}</td>
       <td>${c.name}</td>
       <td>${c.type||'—'}</td>
       <td>${c.size_gallons||'—'}</td>
+      <td style="color:var(--text2)">${c.location||'—'}</td>
       <td style="color:var(--text2)">${c.notes||''}</td>
       <td><button class="btn btn-sm btn-danger" onclick="deleteContainer(${c.id},'${c.name}')">Delete</button></td>
     </tr>`).join('')}</tbody></table>`;
@@ -487,10 +494,12 @@ function containersTable(data) {
 async function createContainer() {
   const name = document.getElementById('c-name').value.trim();
   const type = document.getElementById('c-type').value.trim();
+  const zone_id = parseInt(document.getElementById('c-zone').value)||null;
   const size_gallons = parseFloat(document.getElementById('c-size').value)||null;
+  const location = document.getElementById('c-location').value.trim();
   const notes = document.getElementById('c-notes').value.trim();
   if (!name) { toast('Name required', true); return; }
-  await api('/api/containers', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, type:type||null, size_gallons, notes:notes||null})});
+  await api('/api/containers', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({zone_id, name, type:type||null, size_gallons, location:location||null, notes:notes||null})});
   toast('Container added'); containers();
 }
 

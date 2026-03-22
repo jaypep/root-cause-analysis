@@ -50,13 +50,13 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 
 Open **Settings** in the app to configure:
 
-| Setting | Description | Default |
+| Setting | Description |
 |---|---|---|
-| Weather Station | ICAO airport code for current conditions | `KROG` |
-| Latitude / Longitude | Used for zone lookup, frost dates, and precipitation | `36.3726, -94.1069` |
-| Frost Dates | Last spring frost / first fall frost (manual or auto-detected) | — |
-| Growing Zone | USDA hardiness zone (manual or auto-detected) | — |
-| Garden Year | Current growing season year | — |
+| Weather Station | ICAO airport code for current conditions |
+| Latitude / Longitude | Used for zone lookup, frost dates, and precipitation | 
+| Frost Dates | Last spring frost / first fall frost (manual or auto-detected) |
+| Growing Zone | USDA hardiness zone (manual or auto-detected) |
+| Garden Year | Current growing season year |
 
 ## API
 

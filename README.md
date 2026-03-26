@@ -57,6 +57,7 @@ The app will be available at `http://localhost:8000`.
 
 Open **Settings** in the app to configure:
 
+<<<<<<< HEAD
 | Setting | Description | Default |
 |---|---|---|
 | Weather Station | ICAO airport code for current conditions | `KROG` |
@@ -157,6 +158,15 @@ SQLite, single file (`root-cause-analysis.db`), never committed to git. Schema m
 | `tasks` | All tasks — manual and auto-generated |
 | `journal` | Dated log entries with tags |
 | `settings` | Key/value app configuration |
+=======
+| Setting | Description |
+|---|---|
+| Weather Station | ICAO airport code for current conditions |
+| Latitude / Longitude | Used for zone lookup, frost dates, and precipitation | 
+| Frost Dates | Last spring frost / first fall frost (manual or auto-detected) |
+| Growing Zone | USDA hardiness zone (manual or auto-detected) |
+| Garden Year | Current growing season year |
+>>>>>>> f56ce99531897beac04b6a99907fe2fd2c125f65
 
 ## API
 

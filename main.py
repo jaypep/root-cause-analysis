@@ -43,9 +43,11 @@ def init_db():
         );
         CREATE TABLE IF NOT EXISTS containers (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            zone_id       INTEGER REFERENCES zones(id) ON DELETE SET NULL,
             name          TEXT NOT NULL,
             type          TEXT,
             size_gallons  REAL,
+            location      TEXT,
             notes         TEXT,
             created       TEXT DEFAULT (datetime('now'))
         );
@@ -55,6 +57,7 @@ def init_db():
             variety              TEXT,
             days_to_harvest      INTEGER,
             weeks_to_transplant  INTEGER,
+            direct_sow_weeks     INTEGER,
             succession_weeks     INTEGER,
             succession_count     INTEGER,
             notes                TEXT,
@@ -119,6 +122,33 @@ def init_db():
             notes     TEXT,
             created   TEXT DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS harvests (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            crop_id       INTEGER REFERENCES crops(id) ON DELETE SET NULL,
+            crop_name     TEXT NOT NULL,
+            weight        REAL NOT NULL,
+            unit          TEXT NOT NULL DEFAULT 'oz',
+            price_per_lb  REAL,
+            harvest_date  TEXT DEFAULT (date('now')),
+            notes         TEXT,
+            created       TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS expenses (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            category      TEXT NOT NULL DEFAULT 'other',
+            description   TEXT NOT NULL,
+            amount        REAL NOT NULL,
+            expense_date  TEXT DEFAULT (date('now')),
+            notes         TEXT,
+            created       TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS seed_sources (
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            name    TEXT NOT NULL UNIQUE,
+            url     TEXT,
+            notes   TEXT,
+            created TEXT DEFAULT (datetime('now'))
+        );
     """)
     conn.commit()
     conn.close()
@@ -149,6 +179,8 @@ def migrate_db():
             migrations.append("ALTER TABLE crops ADD COLUMN succession_weeks INTEGER")
         if not has_column("crops", "succession_count"):
             migrations.append("ALTER TABLE crops ADD COLUMN succession_count INTEGER")
+        if not has_column("crops", "direct_sow_weeks"):
+            migrations.append("ALTER TABLE crops ADD COLUMN direct_sow_weeks INTEGER")
 
     # seeds table additions
     if has_table("seeds"):
@@ -161,6 +193,13 @@ def migrate_db():
             migrations.append("ALTER TABLE seeds RENAME COLUMN year_purchased TO seed_lot")
         if has_column("seeds", "year_harvested"):
             pass  # leave it, no harm in keeping old data
+
+    # containers table
+    if has_table("containers"):
+        if not has_column("containers", "location"):
+            migrations.append("ALTER TABLE containers ADD COLUMN location TEXT")
+        if not has_column("containers", "zone_id"):
+            migrations.append("ALTER TABLE containers ADD COLUMN zone_id INTEGER REFERENCES zones(id) ON DELETE SET NULL")
 
     # plants table
     if has_table("plants"):
@@ -202,10 +241,16 @@ def seed_crops_from_file():
         ).fetchone()
         if not existing:
             conn.execute(
-                "INSERT INTO crops (name, variety, days_to_harvest, weeks_to_transplant, succession_weeks, succession_count, notes) VALUES (?,?,?,?,?,?,?)",
-                (c.get("name"), c.get("variety"), c.get("days_to_harvest"), c.get("weeks_to_transplant"), c.get("succession_weeks"), c.get("succession_count"), c.get("notes"))
+                "INSERT INTO crops (name, variety, days_to_harvest, weeks_to_transplant, direct_sow_weeks, succession_weeks, succession_count, notes) VALUES (?,?,?,?,?,?,?,?)",
+                (c.get("name"), c.get("variety"), c.get("days_to_harvest"), c.get("weeks_to_transplant"), c.get("direct_sow_weeks"), c.get("succession_weeks"), c.get("succession_count"), c.get("notes"))
             )
             created += 1
+        elif c.get("direct_sow_weeks") is not None:
+            # Backfill direct_sow_weeks from JSON if the row was created before this field existed
+            conn.execute(
+                "UPDATE crops SET direct_sow_weeks=? WHERE id=? AND direct_sow_weeks IS NULL",
+                (c.get("direct_sow_weeks"), existing["id"])
+            )
     conn.commit()
     conn.close()
     if created:
@@ -232,9 +277,11 @@ class BedIn(BaseModel):
     notes: Optional[str] = None
 
 class ContainerIn(BaseModel):
+    zone_id: Optional[int] = None
     name: str
     type: Optional[str] = None
     size_gallons: Optional[float] = None
+    location: Optional[str] = None
     notes: Optional[str] = None
 
 class CropIn(BaseModel):
@@ -242,6 +289,7 @@ class CropIn(BaseModel):
     variety: Optional[str] = None
     days_to_harvest: Optional[int] = None
     weeks_to_transplant: Optional[int] = None
+    direct_sow_weeks: Optional[int] = None
     succession_weeks: Optional[int] = None
     succession_count: Optional[int] = None
     notes: Optional[str] = None
@@ -289,6 +337,22 @@ class JournalIn(BaseModel):
     title: Optional[str] = None
     body: str
     tags: Optional[str] = None
+
+class HarvestIn(BaseModel):
+    crop_id: Optional[int] = None
+    crop_name: str
+    weight: float
+    unit: str = "oz"
+    price_per_lb: Optional[float] = None
+    harvest_date: Optional[str] = None
+    notes: Optional[str] = None
+
+class ExpenseIn(BaseModel):
+    category: str = "other"
+    description: str
+    amount: float
+    expense_date: Optional[str] = None
+    notes: Optional[str] = None
 
 TASK_TYPES = {"water", "pests", "fertilize", "harvest", "sow_indoors", "sow_outdoors", "transplant"}
 
@@ -412,7 +476,12 @@ def delete_bed(bed_id: int):
 @app.get("/api/containers")
 def list_containers():
     conn = get_db()
-    rows = conn.execute("SELECT * FROM containers ORDER BY name").fetchall()
+    rows = conn.execute("""
+        SELECT c.*, z.name as zone_name
+        FROM containers c
+        LEFT JOIN zones z ON z.id = c.zone_id
+        ORDER BY c.name
+    """).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -420,8 +489,8 @@ def list_containers():
 def create_container(container: ContainerIn):
     conn = get_db()
     cur = conn.execute(
-        "INSERT INTO containers (name, type, size_gallons, notes) VALUES (?,?,?,?)",
-        (container.name, container.type, container.size_gallons, container.notes)
+        "INSERT INTO containers (zone_id, name, type, size_gallons, location, notes) VALUES (?,?,?,?,?,?)",
+        (container.zone_id, container.name, container.type, container.size_gallons, container.location, container.notes)
     )
     conn.commit()
     row = conn.execute("SELECT * FROM containers WHERE id=?", (cur.lastrowid,)).fetchone()
@@ -432,8 +501,8 @@ def create_container(container: ContainerIn):
 def update_container(container_id: int, container: ContainerIn):
     conn = get_db()
     conn.execute(
-        "UPDATE containers SET name=?, type=?, size_gallons=?, notes=? WHERE id=?",
-        (container.name, container.type, container.size_gallons, container.notes, container_id)
+        "UPDATE containers SET zone_id=?, name=?, type=?, size_gallons=?, location=?, notes=? WHERE id=?",
+        (container.zone_id, container.name, container.type, container.size_gallons, container.location, container.notes, container_id)
     )
     conn.commit()
     row = conn.execute("SELECT * FROM containers WHERE id=?", (container_id,)).fetchone()
@@ -464,8 +533,8 @@ def list_crops():
 def create_crop(crop: CropIn):
     conn = get_db()
     cur = conn.execute(
-        "INSERT INTO crops (name, variety, days_to_harvest, weeks_to_transplant, succession_weeks, succession_count, notes) VALUES (?,?,?,?,?,?,?)",
-        (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.succession_weeks, crop.succession_count, crop.notes)
+        "INSERT INTO crops (name, variety, days_to_harvest, weeks_to_transplant, direct_sow_weeks, succession_weeks, succession_count, notes) VALUES (?,?,?,?,?,?,?,?)",
+        (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.direct_sow_weeks, crop.succession_weeks, crop.succession_count, crop.notes)
     )
     conn.commit()
     row = conn.execute("SELECT * FROM crops WHERE id=?", (cur.lastrowid,)).fetchone()
@@ -476,8 +545,8 @@ def create_crop(crop: CropIn):
 def update_crop(crop_id: int, crop: CropIn):
     conn = get_db()
     conn.execute(
-        "UPDATE crops SET name=?, variety=?, days_to_harvest=?, weeks_to_transplant=?, succession_weeks=?, succession_count=?, notes=? WHERE id=?",
-        (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.succession_weeks, crop.succession_count, crop.notes, crop_id)
+        "UPDATE crops SET name=?, variety=?, days_to_harvest=?, weeks_to_transplant=?, direct_sow_weeks=?, succession_weeks=?, succession_count=?, notes=? WHERE id=?",
+        (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.direct_sow_weeks, crop.succession_weeks, crop.succession_count, crop.notes, crop_id)
     )
     conn.commit()
     row = conn.execute("SELECT * FROM crops WHERE id=?", (crop_id,)).fetchone()
@@ -511,8 +580,8 @@ def bulk_import_crops(crops: list[CropIn]):
             skipped += 1
         else:
             conn.execute(
-                "INSERT INTO crops (name, variety, days_to_harvest, weeks_to_transplant, succession_weeks, succession_count, notes) VALUES (?,?,?,?,?,?,?)",
-                (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.succession_weeks, crop.succession_count, crop.notes)
+                "INSERT INTO crops (name, variety, days_to_harvest, weeks_to_transplant, direct_sow_weeks, succession_weeks, succession_count, notes) VALUES (?,?,?,?,?,?,?,?)",
+                (crop.name, crop.variety, crop.days_to_harvest, crop.weeks_to_transplant, crop.direct_sow_weeks, crop.succession_weeks, crop.succession_count, crop.notes)
             )
             created += 1
     conn.commit()
@@ -718,6 +787,83 @@ def delete_entry(entry_id: int):
     conn.close()
 
 # ---------------------------------------------------------------------------
+# Harvests
+# ---------------------------------------------------------------------------
+
+def _weight_in_lb(weight, unit):
+    if unit == "lb":  return weight
+    if unit == "oz":  return weight / 16
+    if unit == "g":   return weight / 453.592
+    if unit == "kg":  return weight * 2.20462
+    return weight
+
+@app.get("/api/harvests")
+def list_harvests():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM harvests ORDER BY harvest_date DESC, created DESC").fetchall()
+    conn.close()
+    result = []
+    for r in rows:
+        h = dict(r)
+        if h["price_per_lb"] is not None:
+            h["value_usd"] = round(_weight_in_lb(h["weight"], h["unit"]) * h["price_per_lb"], 2)
+        else:
+            h["value_usd"] = None
+        result.append(h)
+    return result
+
+@app.post("/api/harvests", status_code=201)
+def create_harvest(h: HarvestIn):
+    conn = get_db()
+    cur = conn.execute(
+        "INSERT INTO harvests (crop_id, crop_name, weight, unit, price_per_lb, harvest_date, notes) VALUES (?,?,?,?,?,?,?)",
+        (h.crop_id, h.crop_name, h.weight, h.unit, h.price_per_lb,
+         h.harvest_date or datetime.now().strftime("%Y-%m-%d"), h.notes)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM harvests WHERE id=?", (cur.lastrowid,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.delete("/api/harvests/{harvest_id}", status_code=204)
+def delete_harvest(harvest_id: int):
+    conn = get_db()
+    conn.execute("DELETE FROM harvests WHERE id=?", (harvest_id,))
+    conn.commit()
+    conn.close()
+
+# ---------------------------------------------------------------------------
+# Expenses
+# ---------------------------------------------------------------------------
+
+@app.get("/api/expenses")
+def list_expenses():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM expenses ORDER BY expense_date DESC, created DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.post("/api/expenses", status_code=201)
+def create_expense(e: ExpenseIn):
+    conn = get_db()
+    cur = conn.execute(
+        "INSERT INTO expenses (category, description, amount, expense_date, notes) VALUES (?,?,?,?,?)",
+        (e.category, e.description, e.amount,
+         e.expense_date or datetime.now().strftime("%Y-%m-%d"), e.notes)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM expenses WHERE id=?", (cur.lastrowid,)).fetchone()
+    conn.close()
+    return dict(row)
+
+@app.delete("/api/expenses/{expense_id}", status_code=204)
+def delete_expense(expense_id: int):
+    conn = get_db()
+    conn.execute("DELETE FROM expenses WHERE id=?", (expense_id,))
+    conn.commit()
+    conn.close()
+
+# ---------------------------------------------------------------------------
 # Weather proxy (NWS, no API key required)
 # ---------------------------------------------------------------------------
 
@@ -841,6 +987,7 @@ def create_task(task: TaskIn):
 
 @app.patch("/api/tasks/{task_id}/done")
 def mark_task_done(task_id: int, body: TaskDone):
+    from datetime import date
     conn = get_db()
     done_at = datetime.now().isoformat() if body.done else None
     conn.execute(
@@ -849,10 +996,44 @@ def mark_task_done(task_id: int, body: TaskDone):
     )
     conn.commit()
     row = conn.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
-    conn.close()
     if not row:
+        conn.close()
         raise HTTPException(status_code=404, detail="Task not found")
-    return dict(row)
+    task = dict(row)
+
+    # When a sow_indoors task is marked done, create the transplant task.
+    # Transplant date = last spring frost (Spring crops only).
+    if task["type"] == "sow_indoors" and task["title"].startswith("Sow indoors: "):
+        label = task["title"][len("Sow indoors: "):]
+        transplant_title = f"Transplant: {label}"
+        if body.done and "(Spring)" in label:
+            last_frost_str = get_setting(conn, "last_frost", "")
+            if last_frost_str:
+                try:
+                    frost = datetime.strptime(last_frost_str, "%Y-%m-%d").date().replace(year=date.today().year)
+                    exists = conn.execute(
+                        "SELECT id FROM tasks WHERE type='transplant' AND title=? AND done=0",
+                        (transplant_title,)
+                    ).fetchone()
+                    if not exists:
+                        conn.execute(
+                            "INSERT INTO tasks (type, title, due_date, notes) VALUES (?,?,?,?)",
+                            ("transplant", transplant_title, frost.isoformat(),
+                             "Auto-generated from seed inventory")
+                        )
+                        conn.commit()
+                except Exception:
+                    pass
+        elif not body.done:
+            # User un-checked sow_indoors — remove the pending transplant task
+            conn.execute(
+                "DELETE FROM tasks WHERE type='transplant' AND title=? AND done=0",
+                (transplant_title,)
+            )
+            conn.commit()
+
+    conn.close()
+    return task
 
 @app.delete("/api/tasks/{task_id}", status_code=204)
 def delete_task(task_id: int):
@@ -936,6 +1117,16 @@ def sync_weather_tasks():
         )
         action = "updated"
     else:
+        # Don't recreate if user completed a watering task in the last 24 hours
+        cutoff = (datetime.now() - timedelta(hours=24)).isoformat()
+        recently_done = conn.execute(
+            "SELECT id FROM tasks WHERE type='water' AND title='Water garden' AND done=1 AND done_at >= ?",
+            (cutoff,)
+        ).fetchone()
+        if recently_done:
+            conn.commit()
+            conn.close()
+            return {"action": "skipped", "reason": "watered recently", "total_rain_inches": round(total_rain, 2)}
         conn.execute(
             "INSERT INTO tasks (type, title, due_date, notes) VALUES ('water','Water garden',?,?)",
             (due, f"Total rain last 7 days: {total_rain:.2f}\". Last rain: {last_rain_date or 'none'}.")
@@ -961,6 +1152,24 @@ VIABILITY_DEFAULTS = {
     "cucumber":5,"melon":5,"squash":5,"pumpkin":5,"zucchini":5,"courgette":5,"lettuce":5,"celery":5,"celeriac":5,
 }
 
+# Default direct sow weeks relative to last spring frost (negative = before, positive = after)
+DIRECT_SOW_DEFAULTS = {
+    "radish": -6, "pea": -6, "spinach": -6,
+    "carrot": -4, "beet": -4, "beetroot": -4, "lettuce": -4, "kale": -4, "chard": -4,
+    "broccoli": -4, "cabbage": -4, "cauliflower": -4,
+    "bean": 2, "cucumber": 1, "squash": 1, "zucchini": 1, "courgette": 1,
+    "pumpkin": 1, "melon": 2, "corn": 2, "sweet corn": 2,
+}
+
+def get_direct_sow_weeks(crop_name, override=None):
+    if override is not None:
+        return override
+    name = (crop_name or "").lower()
+    for k, v in DIRECT_SOW_DEFAULTS.items():
+        if k in name:
+            return v
+    return 0  # default: sow at frost date
+
 # Default weeks to transplant by crop name keyword
 TRANSPLANT_WEEKS_DEFAULTS = {
     "pepper":10,"tomato":7,"eggplant":10,"aubergine":10,
@@ -979,19 +1188,61 @@ def get_viability(crop_name):
 
 def get_transplant_weeks(crop_name, override=None):
     if override is not None:
-        return override
+        return abs(int(override))  # always positive; negative entries are treated as positive
     name = (crop_name or "").lower()
     for k, v in TRANSPLANT_WEEKS_DEFAULTS.items():
         if k in name:
             return v
     return 0  # direct sow by default
 
+# ---------------------------------------------------------------------------
+# Seed sources
+# ---------------------------------------------------------------------------
+
+class SeedSourceIn(BaseModel):
+    name: str
+    url: Optional[str] = None
+    notes: Optional[str] = None
+
+@app.get("/api/seed-sources")
+def list_seed_sources():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM seed_sources ORDER BY name").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.post("/api/seed-sources", status_code=201)
+def create_seed_source(s: SeedSourceIn):
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "INSERT INTO seed_sources (name, url, notes) VALUES (?,?,?) RETURNING *",
+            (s.name.strip(), s.url or None, s.notes or None)
+        ).fetchone()
+        conn.commit()
+        conn.close()
+        return dict(row)
+    except Exception:
+        conn.close()
+        raise HTTPException(status_code=409, detail="A source with that name already exists")
+
+@app.delete("/api/seed-sources/{source_id}", status_code=204)
+def delete_seed_source(source_id: int):
+    conn = get_db()
+    conn.execute("DELETE FROM seed_sources WHERE id=?", (source_id,))
+    conn.commit()
+    conn.close()
+
+# ---------------------------------------------------------------------------
+# Seeds
+# ---------------------------------------------------------------------------
+
 @app.get("/api/seeds")
 def list_seeds():
     conn = get_db()
     rows = conn.execute("""
         SELECT s.*, c.name as crop_name,
-               COALESCE(s.variety, c.variety) as display_variety,
+               COALESCE(s.variety, c.variety, 'Common') as display_variety,
                c.days_to_harvest, c.weeks_to_transplant
         FROM seeds s
         LEFT JOIN crops c ON c.id = s.crop_id
@@ -1061,8 +1312,8 @@ def seed_plan():
 
     seeds = conn.execute("""
         SELECT s.*, c.name as crop_name,
-               COALESCE(s.variety, c.variety) as display_variety,
-               c.days_to_harvest, c.weeks_to_transplant
+               COALESCE(s.variety, c.variety, 'Common') as display_variety,
+               c.days_to_harvest, c.weeks_to_transplant, c.direct_sow_weeks
         FROM seeds s
         LEFT JOIN crops c ON c.id = s.crop_id
         ORDER BY c.name
@@ -1096,12 +1347,19 @@ def seed_plan():
             age = (current_year - seed_year) if seed_year else None
 
             if season == "spring":
-                # Work backwards from last spring frost
-                sow_outdoors = frost - timedelta(days=dth)
-                sow_indoors  = sow_outdoors - timedelta(weeks=weeks) if weeks else None
-                transplant   = frost if weeks else None
+                if weeks:
+                    # Transplant crop: start indoors, transplant at frost
+                    sow_indoors  = frost - timedelta(weeks=weeks)
+                    transplant   = frost
+                    sow_outdoors = None
+                else:
+                    # Direct sow: use explicit offset or keyword default
+                    dsw          = get_direct_sow_weeks(crop_name, d.get("direct_sow_weeks"))
+                    sow_outdoors = frost + timedelta(weeks=dsw)
+                    sow_indoors  = None
+                    transplant   = None
             else:
-                # Work backwards from first fall frost
+                # Fall: work backwards from first fall frost by days-to-harvest
                 sow_outdoors = frost - timedelta(days=dth)
                 sow_indoors  = sow_outdoors - timedelta(weeks=weeks) if weeks else None
                 transplant   = frost if weeks else None
@@ -1115,7 +1373,7 @@ def seed_plan():
                 "days_to_harvest": dth,
                 "weeks_to_transplant": weeks,
                 "sow_indoors":   sow_indoors.isoformat() if sow_indoors else None,
-                "sow_outdoors":  sow_outdoors.isoformat(),
+                "sow_outdoors":  sow_outdoors.isoformat() if sow_outdoors else None,
                 "transplant":    transplant.isoformat() if transplant else None,
                 "harvest_from":  frost.isoformat(),
                 "viable":        viable,
@@ -1158,10 +1416,11 @@ def seed_plan_sync():
     # Get unique crop/variety combos from inventory
     seeds = conn.execute("""
         SELECT DISTINCT
-            COALESCE(s.variety, c.variety) as variety,
+            COALESCE(s.variety, c.variety, 'Common') as variety,
             c.name as crop_name,
             c.days_to_harvest,
             c.weeks_to_transplant,
+            c.direct_sow_weeks,
             c.succession_weeks,
             c.succession_count
         FROM seeds s
@@ -1220,18 +1479,63 @@ def seed_plan_sync():
         except:
             return
 
+        # Parse first fall frost for spring viability checks
+        first_fall_date = None
+        if first_fall:
+            try:
+                first_fall_date = datetime.strptime(first_fall, "%Y-%m-%d").date().replace(year=current_year)
+            except:
+                pass
+
         for s in seeds:
             crop_name    = s["crop_name"] or "Unknown"
             variety      = s["variety"] or ""
-            dth          = s["days_to_harvest"]
+            dth          = s["days_to_harvest"] or 60
             weeks        = get_transplant_weeks(crop_name, s["weeks_to_transplant"])
             succ_weeks   = s["succession_weeks"]
             succ_count   = s["succession_count"] or 1
-            base_label   = f"{crop_name}{' — ' + variety if variety else ''} ({season_label})"
+            base_label   = f"{crop_name} — {variety or 'Common'} ({season_label})"
 
-            base_sow_outdoors = frost - timedelta(days=dth)
-            base_sow_indoors  = base_sow_outdoors - timedelta(weeks=weeks) if weeks else None
-            base_transplant   = frost if weeks else None
+            if season_label == "Spring":
+                if weeks:
+                    # Transplant crop: start indoors, transplant at frost
+                    base_sow_indoors  = frost - timedelta(weeks=weeks)
+                    base_transplant   = frost
+                    base_sow_outdoors = None
+                    # Skip if the crop can't complete before first fall frost
+                    if first_fall_date and (base_transplant + timedelta(days=dth)) > first_fall_date:
+                        continue
+                else:
+                    # Direct sow: use explicit offset or keyword default
+                    dsw               = get_direct_sow_weeks(crop_name, s["direct_sow_weeks"])
+                    base_sow_outdoors = frost + timedelta(weeks=dsw)
+                    base_sow_indoors  = None
+                    base_transplant   = None
+                    # Skip if the crop can't complete before first fall frost
+                    if first_fall_date and (base_sow_outdoors + timedelta(days=dth)) > first_fall_date:
+                        continue
+            else:
+                # Fall: only frost-tolerant direct-sow crops are eligible.
+                # These are crops with no transplant step (weeks == 0) AND a
+                # negative direct_sow_weeks offset, meaning they tolerate cold
+                # and are sown before last spring frost (lettuce, radish, carrot,
+                # spinach, etc.).
+                # All transplant crops (any weeks > 0) and frost-tender direct-sow
+                # crops (dsw >= 0: beans, okra, squash, cucumber) are spring-only.
+                # Overwintering crops (garlic, PSB) will be handled separately
+                # once explicit flagging is added.
+                dsw_fall = get_direct_sow_weeks(crop_name, s["direct_sow_weeks"])
+                if not (weeks == 0 and dsw_fall < 0):
+                    continue
+                base_sow_outdoors = frost - timedelta(days=dth)
+                base_sow_indoors  = base_sow_outdoors - timedelta(weeks=weeks) if weeks else None
+                base_transplant   = (base_sow_outdoors) if weeks else None
+
+                # Skip if the earliest start date is already in the past — too
+                # late to get this crop to maturity before first frost.
+                earliest_start = base_sow_indoors if base_sow_indoors else base_sow_outdoors
+                if earliest_start and earliest_start < today:
+                    continue
 
             # Generate succession sow dates
             count = succ_count if succ_weeks else 1
@@ -1239,15 +1543,28 @@ def seed_plan_sync():
                 offset = timedelta(weeks=succ_weeks * i) if succ_weeks else timedelta(0)
                 label  = f"{base_label} #{i+1}" if count > 1 else base_label
 
-                sow_outdoors = base_sow_outdoors + offset
+                sow_outdoors = (base_sow_outdoors + offset) if base_sow_outdoors else None
                 sow_indoors  = (base_sow_indoors + offset) if base_sow_indoors else None
                 transplant   = (base_transplant + offset) if base_transplant else None
 
+                # For succession, stop once harvest would land after first fall frost
+                if first_fall_date and dth:
+                    harvest_anchor = transplant or sow_outdoors
+                    if harvest_anchor and (harvest_anchor + timedelta(days=dth)) > first_fall_date:
+                        break
+
+                # For fall succession, also stop if sow date is in the past
+                if season_label == "Fall":
+                    sow_start = sow_indoors or sow_outdoors
+                    if sow_start and sow_start < today:
+                        break
+
                 if sow_indoors:
                     upsert_task("sow_indoors", f"Sow indoors: {label}", sow_indoors.isoformat())
-                upsert_task("sow_outdoors", f"Sow outdoors: {label}", sow_outdoors.isoformat())
-                if transplant:
-                    upsert_task("transplant", f"Transplant: {label}", transplant.isoformat())
+                if sow_outdoors:
+                    upsert_task("sow_outdoors", f"Sow outdoors: {label}", sow_outdoors.isoformat())
+                # Transplant tasks are created when the user marks sow_indoors done,
+                # not during sync — see PATCH /api/tasks/{id}/done.
 
     calc_and_upsert(last_spring, "Spring")
     calc_and_upsert(first_fall,  "Fall")
@@ -1464,6 +1781,10 @@ def dashboard():
 def manage():
     return FileResponse("static/manage.html")
 
+@app.get("/help")
+def help_page():
+    return FileResponse("static/help.html")
+
 @app.get("/settings")
 def settings_page():
     return FileResponse("static/settings.html")
@@ -1471,6 +1792,10 @@ def settings_page():
 @app.get("/seeds")
 def seeds_page():
     return FileResponse("static/seeds.html")
+
+@app.get("/plants")
+def plants_page():
+    return FileResponse("static/plants.html")
 
 @app.get("/tasks")
 def tasks_page():

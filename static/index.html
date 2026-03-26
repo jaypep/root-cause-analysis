@@ -23,22 +23,25 @@
 
     main {
       display: grid; grid-template-rows: auto auto 1fr;
-      gap: 14px; padding: 14px 24px; overflow: hidden; min-height: 0;
+      gap: 12px; padding: 12px 24px; overflow: hidden; min-height: 0;
     }
 
     /* Stats row — 4 cards */
     .stats-row {
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
     }
 
     .stat-card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px; padding: 16px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-      display: flex; flex-direction: column; gap: 6px;
+      border-radius: 14px; padding: 10px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      display: flex; flex-direction: column; gap: 4px;
+      text-decoration: none; color: inherit;
+      transition: border-color 0.15s;
     }
+    .stat-card:hover { border-color: var(--green-dim); }
 
-    .stat-value { font-size: 3rem; font-weight: 300; line-height: 1; color: var(--text); }
-    .stat-label { font-size: 0.9rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .stat-value { font-size: 2rem; font-weight: 300; line-height: 1; color: var(--text); }
+    .stat-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
 
     /* Tasks panel */
     .tasks-panel {
@@ -48,8 +51,8 @@
 
     .task-row {
       display: flex; align-items: center; gap: 16px;
-      padding: 14px 20px; border-bottom: 1px solid var(--border);
-      transition: background 0.15s; min-height: 56px;
+      padding: 10px 20px; border-bottom: 1px solid var(--border);
+      transition: background 0.15s; min-height: 46px;
     }
     .task-row:last-child { border-bottom: none; }
     .task-row:active { background: var(--border); }
@@ -87,31 +90,31 @@
     }
 
     .wx-current {
-      padding: 24px 22px; border-right: 1px solid var(--border);
-      display: flex; flex-direction: column; justify-content: center; gap: 8px;
+      padding: 16px 18px; border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; justify-content: center; gap: 6px;
     }
 
-    .wx-icon  { font-size: 3.2rem; line-height: 1; }
-    .wx-temp  { font-size: 3.2rem; font-weight: 300; line-height: 1; }
-    .wx-desc  { font-size: 1.05rem; color: var(--muted); line-height: 1.4; margin-top: 2px; }
-    .wx-meta  { font-size: 0.72rem; color: var(--muted); opacity: 0.6; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px; }
+    .wx-icon  { font-size: 2.4rem; line-height: 1; }
+    .wx-temp  { font-size: 2.4rem; font-weight: 300; line-height: 1; }
+    .wx-desc  { font-size: 0.95rem; color: var(--muted); line-height: 1.4; margin-top: 2px; }
+    .wx-meta  { font-size: 0.72rem; color: var(--muted); opacity: 0.6; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
 
-    .wx-range { display: flex; gap: 14px; align-items: center; margin-top: 10px; }
-    .wx-high  { color: var(--amber); font-size: 1.15rem; font-weight: 500; }
-    .wx-low   { color: var(--blue);  font-size: 1.15rem; }
+    .wx-range { display: flex; gap: 14px; align-items: center; margin-top: 6px; }
+    .wx-high  { color: var(--amber); font-size: 1rem; font-weight: 500; }
+    .wx-low   { color: var(--blue);  font-size: 1rem; }
     .wx-sep   { color: var(--muted); }
 
-    .wx-wind { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 5px; }
+    .wx-wind { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 3px; }
     .wx-wind-row { display: flex; align-items: baseline; gap: 6px; }
-    .wx-wind-value { font-size: 1.25rem; font-weight: 300; color: var(--text); }
-    .wx-wind-gust  { font-size: 1.25rem; font-weight: 500; color: var(--amber); }
-    .wx-wind-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
-    .wx-wind-dir   { font-size: 0.9rem; color: var(--muted); margin-top: 2px; }
+    .wx-wind-value { font-size: 1.1rem; font-weight: 300; color: var(--text); }
+    .wx-wind-gust  { font-size: 1.1rem; font-weight: 500; color: var(--amber); }
+    .wx-wind-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .wx-wind-dir   { font-size: 0.85rem; color: var(--muted); margin-top: 1px; }
 
     /* Rainfall chart */
     .wx-rainfall {
       display: grid; grid-template-rows: auto 1fr auto;
-      padding: 20px 24px 14px; gap: 10px; min-height: 0;
+      padding: 14px 20px 12px; gap: 8px; min-height: 0;
     }
 
     .wx-rainfall-header { display: flex; align-items: baseline; justify-content: space-between; }
@@ -142,7 +145,7 @@
     .due-label     { color: var(--amber); }
     .ok-label      { color: var(--muted); }
   </style>
-  <script src="/static/theme.js?v=3"></script>
+  <script src="/static/theme.js?v=4"></script>
 </head>
 <body>
 
@@ -151,30 +154,30 @@
 <main>
   <!-- Stats row -->
   <div class="stats-row">
-    <div class="stat-card">
+    <a href="/plants" class="stat-card">
       <div class="stat-value" id="stat-plants">—</div>
       <div class="stat-label">Plants</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value" id="stat-beds">—</div>
-      <div class="stat-label">Beds</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value" id="stat-overdue">—</div>
-      <div class="stat-label">Overdue</div>
-    </div>
-    <div class="stat-card">
+    </a>
+    <a href="/tasks" class="stat-card">
+      <div class="stat-value" id="stat-tasks">—</div>
+      <div class="stat-label">Open tasks</div>
+    </a>
+    <a href="/seeds" class="stat-card">
       <div class="stat-value" id="stat-seeds">0</div>
       <div class="stat-label">Seeds in inventory</div>
-    </div>
+    </a>
+    <a href="/manage" class="stat-card">
+      <div class="stat-value" id="stat-harvest">$0</div>
+      <div class="stat-label">Total harvested</div>
+    </a>
   </div>
 
   <!-- Tasks panel -->
   <div class="tasks-panel">
-    <a href="/tasks" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);text-decoration:none;cursor:pointer;min-height:52px;transition:background 0.15s;" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--border);min-height:46px;gap:12px;">
       <span style="font-size:0.9rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);">Tasks</span>
-      <span style="font-size:1rem;color:var(--muted);">View all →</span>
-    </a>
+      <button id="dash-sync-btn" onclick="dashSyncPlanting()" style="background:var(--green-dim);border:none;border-radius:8px;color:#fff;font-family:'DM Sans',sans-serif;font-size:0.8rem;padding:5px 12px;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--green)'" onmouseout="this.style.background='var(--green-dim)'">🗓 Sync</button>
+    </div>
     <div id="task-list">
       <div class="empty">Loading…</div>
     </div>
@@ -249,16 +252,16 @@
     return { label: `In ${days}d`, cls: 'badge-upcoming' };
   }
 
-  async function syncAndLoadTasks() {
-    fetch('/api/tasks/sync', { method: 'POST' }).catch(() => {});
-    fetch('/api/tasks/seed-plan-sync', { method: 'POST' }).catch(() => {});
-    const tasks = await fetch('/api/tasks').then(r => r.json());
-    const list  = document.getElementById('task-list');
-    if (tasks.length === 0) {
-      list.innerHTML = '<div class="empty">No open tasks 🎉</div>';
+  function renderTaskList(tasks) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + 7);
+    const visible = tasks.filter(t => !t.due_date || new Date(t.due_date + 'T12:00:00') <= cutoff).slice(0, 5);
+    const list = document.getElementById('task-list');
+    if (visible.length === 0) {
+      list.innerHTML = '<div class="empty">Nothing due in the next 7 days 🎉</div>';
       return;
     }
-    list.innerHTML = tasks.slice(0, 5).map(t => {
+    list.innerHTML = visible.map(t => {
       const badge = taskDueBadge(t.due_date);
       const icon  = TASK_ICONS[t.type] || '📋';
       const auto  = t.title === 'Water garden';
@@ -267,12 +270,37 @@
         <span class="type-icon">${icon}</span>
         <div class="task-info">
           <div class="task-title">${t.title}</div>
-          ${t.notes ? `<div class="task-sub">${t.notes}</div>` : ''}
+          ${t.due_date ? `<div class="task-sub">Due ${new Date(t.due_date + 'T12:00:00').toLocaleDateString([], {month:'short', day:'numeric'})}</div>` : ''}
         </div>
         ${badge.label ? `<span class="task-badge ${badge.cls}">${badge.label}</span>` : ''}
         ${auto ? `<span class="task-badge badge-auto">auto</span>` : ''}
       </div>`;
     }).join('');
+  }
+
+  async function syncAndLoadTasks() {
+    fetch('/api/tasks/sync', { method: 'POST' }).catch(() => {});
+    fetch('/api/tasks/seed-plan-sync', { method: 'POST' }).catch(() => {});
+    const tasks = await fetch('/api/tasks').then(r => r.json());
+    renderTaskList(tasks);
+  }
+
+  async function dashSyncPlanting() {
+    const btn = document.getElementById('dash-sync-btn');
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    btn.textContent = '⏳ Syncing…';
+    try {
+      await fetch('/api/tasks/seed-plan-sync', { method: 'POST' });
+      btn.textContent = '✓ Done';
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.style.opacity = '1'; }, 2000);
+    } catch (e) {
+      btn.textContent = '✗ Failed';
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.style.opacity = '1'; }, 2000);
+    }
+    const tasks = await fetch('/api/tasks').then(r => r.json());
+    renderTaskList(tasks);
   }
 
   async function toggleTask(id, el) {
@@ -288,18 +316,17 @@
   }
 
   async function loadGardenData() {
-    const [plants, beds, schedules, seeds] = await Promise.all([
+    const [plants, tasks, seeds, harvests] = await Promise.all([
       fetch('/api/plants').then(r => r.json()),
-      fetch('/api/beds').then(r => r.json()),
-      fetch('/api/schedules').then(r => r.json()),
+      fetch('/api/tasks').then(r => r.json()),
       fetch('/api/seeds').then(r => r.json()),
+      fetch('/api/harvests').then(r => r.json()),
     ]);
-    const today = new Date();
-    const overdue = schedules.filter(s => s.next_due && new Date(s.next_due) < today).length;
+    const harvestTotal = harvests.reduce((sum, h) => sum + (h.value_usd || 0), 0);
     document.getElementById('stat-plants').textContent  = plants.length;
-    document.getElementById('stat-beds').textContent    = beds.length;
-    document.getElementById('stat-overdue').textContent = overdue;
+    document.getElementById('stat-tasks').textContent   = tasks.length;
     document.getElementById('stat-seeds').textContent   = seeds.length;
+    document.getElementById('stat-harvest').textContent = '$' + harvestTotal.toFixed(2);
   }
 
   async function loadWeather() {

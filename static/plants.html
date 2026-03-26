@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Root Cause Analysis — Plants</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="/static/theme.js?v=4"></script>
+  <style>
+    main {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 16px;
+      padding: 16px 28px;
+      overflow: hidden;
+    }
+
+    .left-col { display: flex; flex-direction: column; overflow: hidden; }
+    .right-col { display: flex; flex-direction: column; overflow: hidden; }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-title {
+      font-size: 0.8rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+    #plant-list { overflow-y: auto; flex: 1; }
+
+    /* Table */
+    .tbl { width: 100%; border-collapse: collapse; }
+    .tbl th {
+      text-align: left;
+      padding: 10px 18px;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+    }
+    .tbl td { padding: 12px 18px; border-bottom: 1px solid var(--border); vertical-align: middle; font-size: 0.85rem; }
+    .tbl tr:last-child td { border-bottom: none; }
+    .tbl tr:hover td { background: var(--bg3); }
+
+    .btn-danger {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      padding: 4px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
+    }
+    .tbl tr:hover .btn-danger { opacity: 1; }
+    .btn-danger:hover { color: var(--red); }
+
+    /* Add form */
+    .panel-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; }
+
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label {
+      font-size: 0.65rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .field input, .field select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      padding: 11px 12px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus { border-color: var(--green-dim); }
+    .field select option { background: var(--bg2); }
+
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .btn-save {
+      background: var(--green-dim);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      font-weight: 500;
+      padding: 13px;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.15s;
+    }
+    .btn-save:hover  { background: var(--green); }
+    .btn-save:active { transform: scale(0.97); }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface); border: 1px solid var(--green-dim);
+      color: var(--green); font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem; padding: 10px 18px; border-radius: 10px;
+      opacity: 0; transform: translateY(8px); transition: all 0.2s;
+      pointer-events: none; z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Confirm dialog */
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: flex; align-items: center; justify-content: center; z-index: 900;
+    }
+    .dialog {
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 14px; padding: 28px 32px; max-width: 360px; width: 90%;
+    }
+    .dialog h3 {
+      font-family: 'Playfair Display', serif; color: var(--green);
+      margin-bottom: 10px; font-size: 1.2rem; font-weight: 500;
+    }
+    .dialog p { color: var(--text2); font-size: 0.85rem; margin-bottom: 20px; line-height: 1.5; }
+    .dialog-actions { display: flex; gap: 10px; }
+    .dialog .btn-cancel {
+      background: none; border: 1px solid var(--border2); border-radius: 8px;
+      color: var(--text2); font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem; padding: 10px 20px; cursor: pointer;
+    }
+  </style>
+
+<body>
+
+<header id="site-header"></header>
+
+<main>
+  <!-- Left col: add plant -->
+  <div class="left-col">
+    <div class="panel">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);"><span class="panel-title">Add plant</span></div>
+      <div class="panel-body">
+        <div class="field">
+          <label>Crop *</label>
+          <select id="p-crop" onchange="onCropChange()"><option value="">Select crop…</option></select>
+        </div>
+        <div class="field">
+          <label>Variety</label>
+          <select id="p-variety" onchange="onVarietyChange()"><option value="">Select crop first…</option></select>
+          <input type="hidden" id="p-crop-id">
+        </div>
+        <div class="field">
+          <label>Zone</label>
+          <select id="p-zone" onchange="onZoneChange()"><option value="">All zones</option></select>
+        </div>
+        <div class="field">
+          <label>Bed</label>
+          <select id="p-bed" onchange="onBedChange()"><option value="">None</option></select>
+        </div>
+        <div class="field">
+          <label>Container</label>
+          <select id="p-container"><option value="">None</option></select>
+        </div>
+        <div class="row2" id="p-grid-fields" style="display:none">
+          <div class="field"><label>Row</label><input type="number" id="p-row" min="0" placeholder="0"></div>
+          <div class="field"><label>Col</label><input type="number" id="p-col" min="0" placeholder="0"></div>
+        </div>
+        <div class="field">
+          <label>Planted date</label>
+          <input type="date" id="p-planted">
+        </div>
+        <div class="field">
+          <label>Notes</label>
+          <input type="text" id="p-notes" placeholder="Optional">
+        </div>
+        <button class="btn-save" onclick="addPlant()">Add plant</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right col: plant list -->
+  <div class="right-col">
+    <div class="panel">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
+        <span class="panel-title" id="plant-count">Loading…</span>
+      </div>
+      <div id="plant-list"><div style="padding:20px;color:var(--muted);font-size:0.85rem;">Loading…</div></div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+<div id="overlay-root"></div>
+
+<script>
+  function toast(msg, isErr) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.borderColor = isErr ? 'var(--red)' : 'var(--green-dim)';
+    t.style.color = isErr ? 'var(--red)' : 'var(--green)';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  function confirm(title, msg) {
+    return new Promise(resolve => {
+      document.getElementById('overlay-root').innerHTML = `
+        <div class="overlay" onclick="if(event.target===this){closeDialog(false)}">
+          <div class="dialog">
+            <h3>${title}</h3><p>${msg}</p>
+            <div class="dialog-actions">
+              <button class="btn-danger" onclick="closeDialog(true)" style="opacity:1;color:var(--red);border:1px solid var(--red);border-radius:8px;padding:10px 20px;font-size:0.95rem;">Delete</button>
+              <button class="btn-cancel" onclick="closeDialog(false)">Cancel</button>
+            </div>
+          </div>
+        </div>`;
+      window._dialogResolve = resolve;
+    });
+  }
+  function closeDialog(v) {
+    document.getElementById('overlay-root').innerHTML = '';
+    window._dialogResolve?.(v);
+  }
+
+  async function api(path, opts) {
+    const r = await fetch(path, opts);
+    if (!r.ok) throw new Error(await r.text());
+    if (r.status === 204) return null;
+    return r.json();
+  }
+
+  function fmtDate(s) {
+    if (!s) return '—';
+    const d = s.includes('T') ? new Date(s) : new Date(s + 'T12:00:00');
+    return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  }
+
+  let cropList = [], allBeds = [], allContainers = [];
+
+  function onCropChange() {
+    const id = parseInt(document.getElementById('p-crop').value);
+    const varSel = document.getElementById('p-variety');
+    const cropIdField = document.getElementById('p-crop-id');
+    const selected = cropList.find(c => c.id === id);
+    if (!selected) {
+      varSel.innerHTML = '<option value="">Select crop first…</option>';
+      cropIdField.value = '';
+      return;
+    }
+    const matches = cropList.filter(c => c.name === selected.name && c.variety);
+    if (!matches.length) {
+      varSel.innerHTML = `<option value="" data-crop-id="${id}">Common</option>`;
+      cropIdField.value = id;
+    } else {
+      varSel.innerHTML = '<option value="" data-crop-id="">Select variety…</option>' +
+        matches.map(c => `<option value="${c.variety}" data-crop-id="${c.id}">${c.variety}</option>`).join('');
+      cropIdField.value = '';
+    }
+  }
+
+  function onVarietyChange() {
+    const opt = document.getElementById('p-variety').selectedOptions[0];
+    document.getElementById('p-crop-id').value = opt ? (opt.dataset.cropId || '') : '';
+  }
+
+  function onZoneChange() {
+    const zoneId = parseInt(document.getElementById('p-zone').value) || null;
+    const filteredBeds = zoneId ? allBeds.filter(b => b.zone_id === zoneId) : allBeds;
+    const filteredConts = zoneId ? allContainers.filter(c => c.zone_id === zoneId) : allContainers;
+    document.getElementById('p-bed').innerHTML =
+      '<option value="">None</option>' + filteredBeds.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+    document.getElementById('p-container').innerHTML =
+      '<option value="">None</option>' + filteredConts.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    document.getElementById('p-grid-fields').style.display = 'none';
+  }
+
+  function onBedChange() {
+    const hasBed = document.getElementById('p-bed').value;
+    document.getElementById('p-grid-fields').style.display = hasBed ? '' : 'none';
+    if (hasBed) document.getElementById('p-container').value = '';
+  }
+
+  async function loadPlants() {
+    const [plants, beds, containers, crops, zones] = await Promise.all([
+      api('/api/plants'), api('/api/beds'), api('/api/containers'), api('/api/crops'), api('/api/zones')
+    ]);
+
+    allBeds = beds;
+    allContainers = containers;
+
+    // Populate zone dropdown
+    document.getElementById('p-zone').innerHTML =
+      '<option value="">All zones</option>' +
+      zones.map(z => `<option value="${z.id}">${z.name}</option>`).join('');
+
+    // Populate crop dropdown (unique names)
+    cropList = crops;
+    const seen = {};
+    const uniqueCrops = crops.filter(c => seen[c.name] ? false : (seen[c.name] = true));
+    document.getElementById('p-crop').innerHTML =
+      '<option value="">Select crop…</option>' +
+      uniqueCrops.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+    // Populate bed/container dropdowns
+    document.getElementById('p-bed').innerHTML =
+      '<option value="">None</option>' + beds.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+    document.getElementById('p-container').innerHTML =
+      '<option value="">None</option>' + containers.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+    document.getElementById('plant-count').textContent = `${plants.length} plant${plants.length !== 1 ? 's' : ''}`;
+
+    const list = document.getElementById('plant-list');
+    if (!plants.length) {
+      list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--muted);font-size:0.85rem;">No plants yet</div>';
+      return;
+    }
+
+    const bedMap  = Object.fromEntries(beds.map(b => [b.id, b.name]));
+    const contMap = Object.fromEntries(containers.map(c => [c.id, c.name]));
+
+    list.innerHTML = `<table class="tbl">
+      <thead><tr><th>Name</th><th>Variety</th><th>Location</th><th>Planted</th><th>Notes</th><th></th></tr></thead>
+      <tbody>${plants.map(p => {
+        const loc = p.bed_id
+          ? `${bedMap[p.bed_id] || 'Bed'} [${p.row},${p.col}]`
+          : p.container_id ? contMap[p.container_id] || 'Container' : '—';
+        return `<tr>
+          <td>${p.name}</td>
+          <td style="color:var(--text2)">${p.variety || '—'}</td>
+          <td style="color:var(--muted)">${loc}</td>
+          <td style="color:var(--muted)">${fmtDate(p.planted)}</td>
+          <td style="color:var(--text2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.notes || ''}</td>
+          <td><button class="btn-danger" onclick="deletePlant(${p.id},'${p.name.replace(/'/g,"\\'")}')">Delete</button></td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+  }
+
+  async function addPlant() {
+    const cropId = parseInt(document.getElementById('p-crop-id').value) || parseInt(document.getElementById('p-crop').value) || null;
+    const cropSel = document.getElementById('p-crop');
+    const name = cropSel.options[cropSel.selectedIndex]?.text || '';
+    if (!name || name === 'Select crop…') { toast('Crop required', true); return; }
+    const variety  = document.getElementById('p-variety').value || null;
+    const bed_id       = parseInt(document.getElementById('p-bed').value) || null;
+    const container_id = parseInt(document.getElementById('p-container').value) || null;
+    const body = {
+      name,
+      variety,
+      crop_id:      cropId,
+      bed_id,
+      container_id,
+      row:     bed_id ? parseInt(document.getElementById('p-row').value) || null : null,
+      col:     bed_id ? parseInt(document.getElementById('p-col').value) || null : null,
+      planted: document.getElementById('p-planted').value || null,
+      notes:   document.getElementById('p-notes').value.trim() || null,
+    };
+    await api('/api/plants', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    document.getElementById('p-crop').value = '';
+    document.getElementById('p-variety').innerHTML = '<option value="">Select crop first…</option>';
+    document.getElementById('p-crop-id').value = '';
+    document.getElementById('p-zone').value = '';
+    document.getElementById('p-row').value = document.getElementById('p-col').value =
+    document.getElementById('p-planted').value = document.getElementById('p-notes').value = '';
+    document.getElementById('p-grid-fields').style.display = 'none';
+    toast('Plant added');
+    loadPlants();
+  }
+
+  async function deletePlant(id, name) {
+    if (!await confirm('Delete plant', `Delete "${name}"? Watering logs and schedule will also be removed.`)) return;
+    await api(`/api/plants/${id}`, {method:'DELETE'});
+    toast('Plant deleted');
+    loadPlants();
+  }
+
+  loadPlants();
+</script>
+</body>
+</html>

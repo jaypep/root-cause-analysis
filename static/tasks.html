@@ -6,7 +6,7 @@
   <title>Root Cause Analysis — Tasks</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  <script src="/static/theme.js?v=3"></script>
+  <script src="/static/theme.js?v=4"></script>
   <style>
     
     
@@ -139,6 +139,39 @@
     .task-tab:hover { color: var(--text); }
     .task-tab-active { color: var(--green) !important; border-bottom-color: var(--green) !important; }
 
+    .sync-section {
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .sync-section label {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .btn-sync {
+      background: var(--green-dim);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 500;
+      padding: 12px;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.15s;
+      text-align: center;
+    }
+    .btn-sync:hover  { background: var(--green); }
+    .btn-sync:active { transform: scale(0.97); }
+    .btn-sync:disabled { opacity: 0.6; cursor: default; }
+    .sync-status { font-size: 0.8rem; color: var(--muted); min-height: 1.2em; }
+
   
         
     
@@ -197,6 +230,12 @@
         <textarea id="new-notes" placeholder="Optional notes…"></textarea>
       </div>
       <button class="btn-add" onclick="addTask()">Add task</button>
+
+      <div class="sync-section">
+        <label>Planting tasks</label>
+        <button class="btn-sync" id="sync-btn" onclick="syncPlantingTasks()">🗓 Sync planting tasks</button>
+        <div class="sync-status" id="sync-status"></div>
+      </div>
     </div>
   </div>
 </main>
@@ -225,7 +264,8 @@
 
   function formatDate(str) {
     if (!str) return '';
-    return new Date(str).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    const d = str.includes('T') ? new Date(str) : new Date(str + 'T12:00:00');
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   async function loadTasks() {
@@ -241,7 +281,7 @@
     list.innerHTML = tasks.map(t => {
       const badge = taskDueBadge(t.due_date, t.done);
       const icon  = TASK_ICONS[t.type] || '📋';
-      const auto  = t.title === 'Water garden';
+      const auto  = t.title === 'Water garden' || (t.notes || '').startsWith('Auto-generated');
       return `<div class="task-row ${t.done ? 'is-done' : ''}">
         <div class="task-check ${t.done ? 'done' : ''}" onclick="toggleTask(${t.id}, this)">
           ${t.done ? '✓' : ''}
@@ -307,8 +347,37 @@
     loadTasks();
   }
 
-  // Sync weather tasks on load
-  fetch('/api/tasks/sync', { method: 'POST' }).then(() => loadTasks());
+  async function syncPlantingTasks() {
+    const btn    = document.getElementById('sync-btn');
+    const status = document.getElementById('sync-status');
+    btn.disabled = true;
+    btn.textContent = '⏳ Syncing…';
+    status.textContent = '';
+    try {
+      const result = await fetch('/api/tasks/seed-plan-sync', { method: 'POST' }).then(r => r.json());
+      if (result.message) {
+        status.textContent = '⚠ ' + result.message;
+        status.style.color = 'var(--amber)';
+      } else {
+        const parts = [];
+        if (result.created) parts.push(`${result.created} created`);
+        if (result.updated) parts.push(`${result.updated} updated`);
+        if (result.closed)  parts.push(`${result.closed} closed`);
+        status.textContent = parts.length ? '✓ ' + parts.join(' · ') : '✓ Up to date';
+        status.style.color = 'var(--green)';
+      }
+    } catch(e) {
+      status.textContent = '✗ Sync failed';
+      status.style.color = 'var(--red)';
+    }
+    btn.disabled = false;
+    btn.textContent = '🗓 Sync planting tasks';
+    loadTasks();
+  }
+
+  // Sync weather + planting tasks on load
+  fetch('/api/tasks/sync', { method: 'POST' }).catch(() => {});
+  syncPlantingTasks();
 </script>
 </body>
 </html>

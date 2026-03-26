@@ -6,7 +6,7 @@
   <title>Root Cause Analysis — Manage</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  <script src="/static/theme.js?v=3"></script>
+  <script src="/static/theme.js?v=4"></script>
   <style>
     
 
@@ -30,56 +30,30 @@
       overflow: hidden;
     }
 
-    /* Shell: sidebar + main */
-    .shell {
-      display: grid;
-      grid-template-columns: 200px 1fr;
+    .content-wrap {
+      display: flex;
+      flex-direction: column;
       overflow: hidden;
     }
 
-    /* Sidebar */
-    .sidebar {
+    .tab-bar {
+      display: flex;
       background: var(--bg2);
-      border-right: 1px solid var(--border);
-      padding: 20px 0;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      overflow-y: auto;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex-shrink: 0;
     }
+    .tab-bar::-webkit-scrollbar { display: none; }
 
-    .nav-section {
-      padding: 14px 18px 6px;
-      font-size: 0.75rem;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 18px;
-      color: var(--text2);
-      cursor: pointer;
-      border-left: 2px solid transparent;
-      font-size: 0.85rem;
-      transition: all 0.15s;
-    }
-    .nav-item:hover, .nav-item.active {
-      color: var(--green);
-      background: var(--dim);
-      border-left-color: var(--green-dim);
-    }
-    .nav-item .icon { font-size: 1rem; width: 20px; text-align: center; }
-
-    /* Main content */
     .main {
+      flex: 1;
       padding: 24px 28px;
       overflow-y: auto;
       background: var(--bg);
+      scrollbar-width: none;
     }
+    .main::-webkit-scrollbar { display: none; }
 
     /* Page header */
     .page-header {
@@ -250,27 +224,24 @@
     .dialog p { color: var(--text2); font-size: 0.85rem; margin-bottom: 20px; line-height: 1.5; }
     .dialog-actions { display: flex; gap: 10px; }
 
-    @media (max-width: 768px) {
-      .shell { grid-template-columns: 1fr; }
-      .sidebar { display: none; }
-    }
   </style>
 
 <body>
 
 <header id="site-header"></header>
 
-<div class="shell">
-  <nav class="sidebar">
-    <div class="nav-section">Data entry</div>
-    <div class="nav-item active" onclick="showSection('plants')"><span class="icon">🌿</span> Plants</div>
-    <div class="nav-item" onclick="showSection('zones')"><span class="icon">◫</span> Zones</div>
-    <div class="nav-item" onclick="showSection('beds')"><span class="icon">⊟</span> Beds</div>
-    <div class="nav-item" onclick="showSection('containers')"><span class="icon">◻</span> Containers</div>
-    <div class="nav-item" onclick="showSection('schedules')"><span class="icon">⏱</span> Schedules</div>
-    <div class="nav-item" onclick="showSection('journal')"><span class="icon">📓</span> Journal</div>
+<div class="content-wrap">
+  <nav class="tab-bar">
+    <button class="tab active" id="tab-zones"      onclick="showSection('zones')">◫ Zones</button>
+    <button class="tab" id="tab-beds"              onclick="showSection('beds')">⊟ Beds</button>
+    <button class="tab" id="tab-containers"        onclick="showSection('containers')">◻ Containers</button>
+    <button class="tab" id="tab-crops"             onclick="showSection('crops')">🫘 Crops</button>
+    <button class="tab" id="tab-schedules"         onclick="showSection('schedules')">⏱ Schedules</button>
+    <button class="tab" id="tab-journal"           onclick="showSection('journal')">📓 Journal</button>
+    <button class="tab" id="tab-harvest"           onclick="showSection('harvest')">🌾 Harvest</button>
+    <button class="tab" id="tab-expenses"          onclick="showSection('expenses')">💸 Expenses</button>
+    <button class="tab" id="tab-sources"           onclick="showSection('sources')">🏷 Seed Sources</button>
   </nav>
-
   <main class="main" id="main-content"></main>
 </div>
 
@@ -322,16 +293,16 @@ async function api(path, opts) {
 }
 
 function showSection(s) {
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(el => {
-    if (el.getAttribute('onclick')?.includes(`'${s}'`)) el.classList.add('active');
-  });
-  ({ plants, zones, beds, containers, schedules, journal }[s] || plants)();
+  document.querySelectorAll('.tab-bar .tab').forEach(el => el.classList.remove('active'));
+  const tab = document.getElementById('tab-' + s);
+  if (tab) tab.classList.add('active');
+  ({ zones, beds, containers, schedules, journal, crops, harvest, expenses, sources }[s] || zones)();
 }
 
 function fmtDate(s) {
   if (!s) return '—';
-  return new Date(s).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  const d = s.includes('T') ? new Date(s) : new Date(s + 'T12:00:00');
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
 }
 
 // ════════════════════════
@@ -362,11 +333,10 @@ async function zones() {
 function zonesTable(data) {
   if (!data.length) return '<div class="empty">No zones yet</div>';
   return `<table class="tbl">
-    <thead><tr><th>Name</th><th>Notes</th><th>Created</th><th></th></tr></thead>
+    <thead><tr><th>Name</th><th>Notes</th><th></th></tr></thead>
     <tbody>${data.map(z=>`<tr>
       <td>${z.name}</td>
       <td style="color:var(--text2)">${z.notes||''}</td>
-      <td style="color:var(--muted)">${fmtDate(z.created)}</td>
       <td><button class="btn btn-sm btn-danger" onclick="deleteZone(${z.id},'${z.name}')">Delete</button></td>
     </tr>`).join('')}</tbody></table>`;
 }
@@ -510,80 +480,6 @@ async function deleteContainer(id, name) {
 }
 
 // ════════════════════════
-// PLANTS
-// ════════════════════════
-async function plants() {
-  const main = document.getElementById('main-content');
-  main.innerHTML = '<div class="loading">Loading…</div>';
-  const [data, bedList, contList] = await Promise.all([api('/api/plants'), api('/api/beds'), api('/api/containers')]);
-  const bedOptions = `<option value="">None</option>` + bedList.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
-  const contOptions = `<option value="">None</option>` + contList.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
-  main.innerHTML = `
-    <div class="page-header">
-      <div><div class="page-title">Plants</div><div class="page-subtitle">All plants in your garden</div></div>
-    </div>
-    <div class="panel">
-      <div class="panel-head"><span class="panel-title">Add plant</span></div>
-      <div class="form-grid">
-        <div class="form-group"><label>Name *</label><input id="p-name" placeholder="e.g. Tomato"></div>
-        <div class="form-group"><label>Variety</label><input id="p-variety" placeholder="e.g. Cherokee Purple"></div>
-        <div class="form-group"><label>Bed</label><select id="p-bed" onchange="onBedChange()">${bedOptions}</select></div>
-        <div class="form-group"><label>Container</label><select id="p-container">${contOptions}</select></div>
-        <div class="form-group" id="p-row-group" style="display:none"><label>Row</label><input id="p-row" type="number" min="0" placeholder="0"></div>
-        <div class="form-group" id="p-col-group" style="display:none"><label>Col</label><input id="p-col" type="number" min="0" placeholder="0"></div>
-        <div class="form-group"><label>Planted date</label><input id="p-planted" type="date"></div>
-        <div class="form-group span2"><label>Notes</label><input id="p-notes" placeholder="Optional"></div>
-      </div>
-      <div class="form-actions"><button class="btn btn-primary" onclick="createPlant()">Add plant</button></div>
-    </div>
-    <div class="panel">
-      <div class="panel-head"><span class="panel-title">${data.length} plants</span></div>
-      ${plantsTable(data)}
-    </div>`;
-}
-
-function onBedChange() {
-  const hasBed = document.getElementById('p-bed').value;
-  document.getElementById('p-row-group').style.display = hasBed ? '' : 'none';
-  document.getElementById('p-col-group').style.display = hasBed ? '' : 'none';
-  if (hasBed) document.getElementById('p-container').value = '';
-}
-
-function plantsTable(data) {
-  if (!data.length) return '<div class="empty">No plants yet</div>';
-  return `<table class="tbl">
-    <thead><tr><th>Name</th><th>Variety</th><th>Location</th><th>Planted</th><th>Notes</th><th></th></tr></thead>
-    <tbody>${data.map(p=>`<tr>
-      <td>${p.name}</td>
-      <td style="color:var(--text2)">${p.variety||'—'}</td>
-      <td style="color:var(--muted)">${p.bed_id ? `Bed #${p.bed_id} [${p.row},${p.col}]` : p.container_id ? `Container #${p.container_id}` : '—'}</td>
-      <td style="color:var(--muted)">${fmtDate(p.planted)}</td>
-      <td style="color:var(--text2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.notes||''}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="deletePlant(${p.id},'${p.name}')">Delete</button></td>
-    </tr>`).join('')}</tbody></table>`;
-}
-
-async function createPlant() {
-  const name = document.getElementById('p-name').value.trim();
-  const variety = document.getElementById('p-variety').value.trim();
-  const bed_id = parseInt(document.getElementById('p-bed').value)||null;
-  const container_id = parseInt(document.getElementById('p-container').value)||null;
-  const row = bed_id ? parseInt(document.getElementById('p-row').value) : null;
-  const col = bed_id ? parseInt(document.getElementById('p-col').value) : null;
-  const planted = document.getElementById('p-planted').value || null;
-  const notes = document.getElementById('p-notes').value.trim();
-  if (!name) { toast('Name required', true); return; }
-  await api('/api/plants', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, variety:variety||null, bed_id, container_id, row, col, planted, notes:notes||null})});
-  toast('Plant added'); plants();
-}
-
-async function deletePlant(id, name) {
-  if (!await confirm('Delete plant', `Delete "${name}"? Watering logs and schedule will also be removed.`)) return;
-  await api(`/api/plants/${id}`, {method:'DELETE'});
-  toast('Plant deleted'); plants();
-}
-
-// ════════════════════════
 // SCHEDULES
 // ════════════════════════
 async function schedules() {
@@ -694,8 +590,362 @@ async function deleteEntry(id) {
   toast('Entry deleted'); journal();
 }
 
+// ════════════════════════
+// CROPS
+// ════════════════════════
+let _editingCropId = null;
+
+async function crops() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div class="loading">Loading…</div>';
+  const data = await api('/api/crops');
+  _editingCropId = null;
+  main.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Crops</div><div class="page-subtitle">Crop catalog with planting schedule data</div></div>
+    </div>
+    <div class="panel" id="crop-form-panel">
+      <div class="panel-head"><span class="panel-title" id="crop-form-title">Add crop</span></div>
+      <div class="form-grid">
+        <div class="form-group"><label>Crop name *</label><input id="cr-name" placeholder="e.g. Tomato"></div>
+        <div class="form-group"><label>Variety</label><input id="cr-variety" placeholder="e.g. Cherokee Purple"></div>
+        <div class="form-group"><label>Days to harvest</label><input id="cr-dth" type="number" min="1" placeholder="e.g. 80"></div>
+        <div class="form-group"><label>Start indoors (weeks before last frost)</label><input id="cr-wtt" type="number" min="0" placeholder="e.g. 7 — 0 for direct sow"></div>
+        <div class="form-group"><label>Direct sow offset (weeks, ±)</label><input id="cr-dsw" type="number" placeholder="e.g. -4 before, 2 after frost"></div>
+        <div class="form-group"><label>Succession every (weeks)</label><input id="cr-sw" type="number" min="1" placeholder="e.g. 2"></div>
+        <div class="form-group"><label>Succession count</label><input id="cr-sc" type="number" min="1" placeholder="e.g. 4"></div>
+        <div class="form-group"><label>Notes</label><input id="cr-notes" placeholder="Optional"></div>
+      </div>
+      <div class="form-group" style="padding:0 0 4px 0;font-size:0.78rem;color:var(--muted);line-height:1.5;">
+        <em>Direct sow offset:</em> weeks relative to last spring frost. Negative = before frost (e.g. -4 for lettuce), positive = after (e.g. 2 for beans). Leave blank to use crop-name defaults. Set this to override timing for overwintering crops like Purple Sprouting broccoli or garlic.
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="crop-save-btn" onclick="saveCrop()">Add crop</button>
+        <button class="btn" id="crop-cancel-btn" style="display:none" onclick="cancelCropEdit()">Cancel</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">${data.length} crops</span></div>
+      ${cropsTable(data)}
+    </div>`;
+}
+
+function cropsTable(data) {
+  if (!data.length) return '<div class="empty">No crops yet</div>';
+  return `<table class="tbl">
+    <thead><tr><th>Crop</th><th>Variety</th><th>DTH</th><th>Start indoors</th><th>Direct sow offset</th><th>Succession</th><th>Notes</th><th></th></tr></thead>
+    <tbody>${data.map(c => {
+      const dsw = c.direct_sow_weeks != null ? (c.direct_sow_weeks >= 0 ? `+${c.direct_sow_weeks}` : `${c.direct_sow_weeks}`) + ' wk' : '—';
+      const wtt = c.weeks_to_transplant ? `${c.weeks_to_transplant} wk` : '—';
+      const succ = (c.succession_weeks && c.succession_count) ? `every ${c.succession_weeks}w × ${c.succession_count}` : '—';
+      return `<tr>
+        <td>${c.name}</td>
+        <td style="color:var(--text2)">${c.variety || '—'}</td>
+        <td style="color:var(--muted)">${c.days_to_harvest ? c.days_to_harvest + 'd' : '—'}</td>
+        <td style="color:var(--muted)">${wtt}</td>
+        <td style="color:var(--muted)">${dsw}</td>
+        <td style="color:var(--muted)">${succ}</td>
+        <td style="color:var(--text2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.notes || ''}</td>
+        <td class="tbl-actions">
+          <button class="btn btn-sm" onclick="editCrop(${JSON.stringify(c).replace(/"/g,'&quot;')})">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteCrop(${c.id},'${c.name}${c.variety ? ' — ' + c.variety : ''}')">Delete</button>
+        </td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+function editCrop(c) {
+  _editingCropId = c.id;
+  document.getElementById('crop-form-title').textContent = 'Edit crop';
+  document.getElementById('cr-name').value    = c.name || '';
+  document.getElementById('cr-variety').value = c.variety || '';
+  document.getElementById('cr-dth').value     = c.days_to_harvest ?? '';
+  document.getElementById('cr-wtt').value     = c.weeks_to_transplant ?? '';
+  document.getElementById('cr-dsw').value     = c.direct_sow_weeks ?? '';
+  document.getElementById('cr-sw').value      = c.succession_weeks ?? '';
+  document.getElementById('cr-sc').value      = c.succession_count ?? '';
+  document.getElementById('cr-notes').value   = c.notes || '';
+  document.getElementById('crop-save-btn').textContent = 'Update crop';
+  document.getElementById('crop-cancel-btn').style.display = '';
+  document.getElementById('crop-form-panel').scrollIntoView({behavior:'smooth'});
+}
+
+function cancelCropEdit() {
+  _editingCropId = null;
+  document.getElementById('crop-form-title').textContent = 'Add crop';
+  document.getElementById('cr-name').value = document.getElementById('cr-variety').value =
+  document.getElementById('cr-dth').value  = document.getElementById('cr-wtt').value =
+  document.getElementById('cr-dsw').value  = document.getElementById('cr-sw').value =
+  document.getElementById('cr-sc').value   = document.getElementById('cr-notes').value = '';
+  document.getElementById('crop-save-btn').textContent = 'Add crop';
+  document.getElementById('crop-cancel-btn').style.display = 'none';
+}
+
+async function saveCrop() {
+  const name = document.getElementById('cr-name').value.trim();
+  if (!name) { toast('Crop name required', true); return; }
+  const body = {
+    name,
+    variety:             document.getElementById('cr-variety').value.trim() || null,
+    days_to_harvest:     parseInt(document.getElementById('cr-dth').value) || null,
+    weeks_to_transplant: parseInt(document.getElementById('cr-wtt').value) ?? null,
+    direct_sow_weeks:    document.getElementById('cr-dsw').value !== '' ? parseInt(document.getElementById('cr-dsw').value) : null,
+    succession_weeks:    parseInt(document.getElementById('cr-sw').value) || null,
+    succession_count:    parseInt(document.getElementById('cr-sc').value) || null,
+    notes:               document.getElementById('cr-notes').value.trim() || null,
+  };
+  if (_editingCropId) {
+    await api(`/api/crops/${_editingCropId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    toast('Crop updated');
+  } else {
+    await api('/api/crops', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    toast('Crop added');
+  }
+  crops();
+}
+
+async function deleteCrop(id, label) {
+  if (!await confirm('Delete crop', `Delete "${label}"? Seeds linked to this crop will be unlinked.`)) return;
+  await api(`/api/crops/${id}`, {method:'DELETE'});
+  toast('Crop deleted'); crops();
+}
+
+// ════════════════════════
+// HARVEST
+// ════════════════════════
+async function harvest() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div class="loading">Loading…</div>';
+  const [data, cropList] = await Promise.all([api('/api/harvests'), api('/api/crops')]);
+
+  const seen = {};
+  const uniqueCrops = cropList.filter(c => seen[c.name] ? false : (seen[c.name] = true));
+  const cropOpts = '<option value="">Select crop…</option>' + uniqueCrops.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+  const totalValue = data.reduce((sum, h) => sum + (h.value_usd || 0), 0);
+
+  main.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Harvest Log</div><div class="page-subtitle">Track what you've grown and saved</div></div>
+      <div style="text-align:right;">
+        <div style="font-size:1.8rem;font-weight:300;color:var(--green);">$${totalValue.toFixed(2)}</div>
+        <div style="font-size:0.75rem;color:var(--muted);">estimated organic value</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">Log harvest</span></div>
+      <div class="form-grid">
+        <div class="form-group"><label>Crop *</label><select id="h-crop">${cropOpts}</select></div>
+        <div class="form-group"><label>Weight *</label><input type="number" id="h-weight" min="0.1" step="0.1" placeholder="e.g. 8"></div>
+        <div class="form-group"><label>Unit</label><select id="h-unit">
+          <option value="oz">oz</option>
+          <option value="lb">lb</option>
+        </select></div>
+        <div class="form-group"><label>Organic price / lb ($)</label><input type="number" id="h-price" min="0" step="0.01" placeholder="e.g. 3.99"></div>
+        <div class="form-group"><label>Date</label><input type="date" id="h-date" value="${new Date().toISOString().split('T')[0]}"></div>
+        <div class="form-group"><label>Notes</label><input id="h-notes" placeholder="Optional"></div>
+      </div>
+      <div class="form-actions"><button class="btn btn-primary" onclick="createHarvest()">Log harvest</button></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">${data.length} harvest${data.length !== 1 ? 's' : ''} logged</span></div>
+      ${harvestTable(data)}
+    </div>`;
+}
+
+function harvestTable(data) {
+  if (!data.length) return '<div class="empty">No harvests logged yet</div>';
+  return `<table class="tbl">
+    <thead><tr><th>Crop</th><th>Weight</th><th>Price / lb</th><th>Value</th><th>Date</th><th>Notes</th><th></th></tr></thead>
+    <tbody>${data.map(h => {
+      const value = h.value_usd != null ? `$${h.value_usd.toFixed(2)}` : '—';
+      return `<tr>
+        <td>${h.crop_name}</td>
+        <td>${h.weight} ${h.unit}</td>
+        <td style="color:var(--muted)">${h.price_per_lb != null ? '$' + h.price_per_lb.toFixed(2) : '—'}</td>
+        <td style="color:var(--green);font-weight:500">${value}</td>
+        <td style="color:var(--muted)">${fmtDate(h.harvest_date)}</td>
+        <td style="color:var(--text2)">${h.notes || ''}</td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteHarvest(${h.id})">Delete</button></td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+async function createHarvest() {
+  const sel = document.getElementById('h-crop');
+  const crop_name = sel.options[sel.selectedIndex]?.text || '';
+  if (!crop_name || crop_name === 'Select crop…') { toast('Crop required', true); return; }
+  const crop_id = parseInt(sel.value) || null;
+  const weight = parseFloat(document.getElementById('h-weight').value);
+  if (!weight) { toast('Weight required', true); return; }
+  const body = {
+    crop_id, crop_name, weight,
+    unit:         document.getElementById('h-unit').value,
+    price_per_lb: parseFloat(document.getElementById('h-price').value) || null,
+    harvest_date: document.getElementById('h-date').value || null,
+    notes:        document.getElementById('h-notes').value.trim() || null,
+  };
+  await api('/api/harvests', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  toast('Harvest logged'); harvest();
+}
+
+async function deleteHarvest(id) {
+  if (!await confirm('Delete harvest', 'Remove this harvest entry?')) return;
+  await api(`/api/harvests/${id}`, {method:'DELETE'});
+  toast('Entry deleted'); harvest();
+}
+
+// ════════════════════════
+// EXPENSES
+// ════════════════════════
+const EXPENSE_CATEGORIES = ['Seeds', 'Bulbs & Corms', 'Soil & Amendments', 'Lumber', 'Infrastructure', 'Tools', 'Other'];
+
+async function expenses() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div class="loading">Loading…</div>';
+  const data = await api('/api/expenses');
+
+  const total = data.reduce((sum, e) => sum + e.amount, 0);
+  const byCategory = {};
+  data.forEach(e => { byCategory[e.category] = (byCategory[e.category] || 0) + e.amount; });
+  const categorySummary = Object.entries(byCategory)
+    .sort((a, b) => b[1] - a[1])
+    .map(([cat, amt]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:0.85rem;">
+      <span style="color:var(--text2)">${cat}</span>
+      <span style="font-weight:500">$${amt.toFixed(2)}</span>
+    </div>`).join('');
+
+  const catOpts = EXPENSE_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  main.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Expenses</div><div class="page-subtitle">Garden costs and investments</div></div>
+      <div style="text-align:right;">
+        <div style="font-size:1.8rem;font-weight:300;color:var(--text);">$${total.toFixed(2)}</div>
+        <div style="font-size:0.75rem;color:var(--muted);">total invested</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 260px;gap:16px;align-items:start;">
+      <div>
+        <div class="panel" style="margin-bottom:16px;">
+          <div class="panel-head"><span class="panel-title">Log expense</span></div>
+          <div class="form-grid">
+            <div class="form-group"><label>Category</label><select id="e-cat">${catOpts}</select></div>
+            <div class="form-group"><label>Description *</label><input id="e-desc" placeholder="e.g. Tomato seeds, Cedar boards"></div>
+            <div class="form-group"><label>Amount ($) *</label><input type="number" id="e-amount" min="0.01" step="0.01" placeholder="e.g. 12.99"></div>
+            <div class="form-group"><label>Date</label><input type="date" id="e-date" value="${new Date().toISOString().split('T')[0]}"></div>
+            <div class="form-group span2"><label>Notes</label><input id="e-notes" placeholder="Optional"></div>
+          </div>
+          <div class="form-actions"><button class="btn btn-primary" onclick="createExpense()">Log expense</button></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><span class="panel-title">${data.length} expense${data.length !== 1 ? 's' : ''}</span></div>
+          ${expensesTable(data)}
+        </div>
+      </div>
+      <div class="panel" style="padding:16px 18px;">
+        <div style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:12px;">By category</div>
+        ${categorySummary || '<div style="color:var(--muted);font-size:0.85rem;">No expenses yet</div>'}
+      </div>
+    </div>`;
+}
+
+function expensesTable(data) {
+  if (!data.length) return '<div class="empty">No expenses logged yet</div>';
+  return `<table class="tbl">
+    <thead><tr><th>Category</th><th>Description</th><th>Amount</th><th>Date</th><th>Notes</th><th></th></tr></thead>
+    <tbody>${data.map(e => `<tr>
+      <td style="color:var(--text2)">${e.category}</td>
+      <td>${e.description}</td>
+      <td style="font-weight:500">$${e.amount.toFixed(2)}</td>
+      <td style="color:var(--muted)">${fmtDate(e.expense_date)}</td>
+      <td style="color:var(--text2)">${e.notes || ''}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteExpense(${e.id})">Delete</button></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+async function createExpense() {
+  const desc = document.getElementById('e-desc').value.trim();
+  const amount = parseFloat(document.getElementById('e-amount').value);
+  if (!desc) { toast('Description required', true); return; }
+  if (!amount) { toast('Amount required', true); return; }
+  const body = {
+    category:     document.getElementById('e-cat').value,
+    description:  desc,
+    amount,
+    expense_date: document.getElementById('e-date').value || null,
+    notes:        document.getElementById('e-notes').value.trim() || null,
+  };
+  await api('/api/expenses', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  toast('Expense logged'); expenses();
+}
+
+async function deleteExpense(id) {
+  if (!await confirm('Delete expense', 'Remove this expense entry?')) return;
+  await api(`/api/expenses/${id}`, {method:'DELETE'});
+  toast('Expense deleted'); expenses();
+}
+
+// ════════════════════════
+// SEED SOURCES
+// ════════════════════════
+async function sources() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '<div class="loading">Loading…</div>';
+  const data = await api('/api/seed-sources');
+  main.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Seed Sources</div><div class="page-subtitle">Seed companies, saved seed, and other suppliers</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 260px;gap:16px;align-items:start;">
+      <div>
+        <div class="panel" style="margin-bottom:16px;">
+          <div class="panel-head"><span class="panel-title">Add source</span></div>
+          <div class="form-grid" style="grid-template-columns:1fr;">
+            <div class="form-group"><label>Name *</label><input id="src-name" type="text" placeholder="e.g. Baker Creek, Saved seed, Local farm"></div>
+          </div>
+          <div class="form-actions"><button class="btn btn-primary" onclick="createSource()">Add source</button></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><span class="panel-title">${data.length} source${data.length !== 1 ? 's' : ''}</span></div>
+          ${sourcesTable(data)}
+        </div>
+      </div>
+      <div class="panel" style="padding:16px 18px;">
+        <div style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:12px;">Sources</div>
+        ${data.length ? data.map(s => `
+          <div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--text2);">${s.name}</div>
+        `).join('') : '<div style="color:var(--muted);font-size:0.85rem;">No sources yet</div>'}
+      </div>
+    </div>`;
+}
+
+function sourcesTable(data) {
+  if (!data.length) return '<div class="empty">No sources added yet</div>';
+  return `<table class="tbl">
+    <thead><tr><th>Name</th><th></th></tr></thead>
+    <tbody>${data.map(s => `<tr>
+      <td style="font-weight:500;">${s.name}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteSource(${s.id},'${s.name}')">Delete</button></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+async function createSource() {
+  const name = document.getElementById('src-name').value.trim();
+  if (!name) { document.getElementById('src-name').focus(); return; }
+  await api('/api/seed-sources', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ name }) });
+  toast('Source added'); sources();
+}
+
+async function deleteSource(id, name) {
+  if (!await confirm('Delete source', `Remove "${name}"?`)) return;
+  await api(`/api/seed-sources/${id}`, { method:'DELETE' });
+  toast('Source deleted'); sources();
+}
+
 // ── init ──
-plants();
+zones();
 </script>
 </body>
 </html>

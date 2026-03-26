@@ -144,6 +144,7 @@ function buildHeader() {
       navBtn('/', 'Dashboard') +
       navBtn('/tasks', 'Tasks') +
       navBtn('/seeds', 'Seeds') +
+      navBtn('/plants', 'Plants') +
       navBtn('/manage', 'Manage Garden') +
     '</div>' +
     '<div style="display:flex;align-items:center;gap:10px;">' +
@@ -152,6 +153,7 @@ function buildHeader() {
         '<div id="date" style="font-size:0.85rem;color:var(--muted);"></div>' +
       '</div>' +
       navBtn('/settings', '⚙ Settings') +
+      navBtn('/help', 'Help') +
       '<button class="nav-btn" onclick="toggleTheme()">' +
         '<span class="theme-toggle-text">' + (isDark ? '☀' : '☾') + '</span> Toggle Theme' +
       '</button>' +

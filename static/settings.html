@@ -6,7 +6,7 @@
   <title>Root Cause Analysis — Settings</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  <script src="/static/theme.js?v=3"></script>
+  <script src="/static/theme.js?v=4"></script>
   
   <style>
     
@@ -169,6 +169,7 @@
   <div class="tabs">
     <button class="tab active" onclick="switchTab('weather', this)">🌤 Weather</button>
     <button class="tab" onclick="switchTab('garden', this)">🌱 Garden Planning</button>
+    <button class="tab" onclick="switchTab('roi', this); loadRoi()">💰 Garden ROI</button>
   </div>
 
   <!-- Weather tab -->
@@ -201,7 +202,7 @@
         </div>
         <div class="preview-box" id="weather-preview">Loading…</div>
         <div class="actions">
-          <button class="btn-save" onclick="saveSettings()">Save</button>
+          <button class="btn-save" onclick="saveWeatherSettings()">Save</button>
           <span class="status" id="weather-status"></span>
         </div>
       </div>
@@ -276,9 +277,19 @@
 
         <div class="preview-box" id="garden-preview">Loading…</div>
         <div class="actions">
-          <button class="btn-save" onclick="saveSettings()">Save</button>
+          <button class="btn-save" onclick="saveGardenSettings()">Save</button>
           <span class="status" id="garden-status"></span>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Garden ROI tab -->
+  <div class="tab-panel" id="tab-roi">
+    <div class="section">
+      <div class="section-header"><h2>Garden ROI</h2></div>
+      <div class="section-body">
+        <div id="roi-content" style="color:var(--muted);font-size:0.9rem;">Loading…</div>
       </div>
     </div>
   </div>
@@ -384,11 +395,21 @@
     updatePreviews(data);
   }
 
-  async function saveSettings() {
+  async function saveAllSettings() {
     const station = document.getElementById('weather-station').value.trim().toUpperCase();
     const lat     = document.getElementById('weather-lat').value.trim();
     const lon     = document.getElementById('weather-lon').value.trim();
+    const garden_year   = document.getElementById('garden-year').value.trim();
+    const spring_season = document.getElementById('spring-season').value.trim();
+    const fall_season   = document.getElementById('fall-season').value.trim();
+    const growing_zone  = document.getElementById('growing-zone').value;
+    const last_frost    = document.getElementById('last-frost').value || null;
+    const first_frost   = document.getElementById('first-frost').value || null;
+    return { station, lat, lon, garden_year, spring_season, fall_season, growing_zone, last_frost, first_frost };
+  }
 
+  async function saveWeatherSettings() {
+    const { station, lat, lon, garden_year, spring_season, fall_season, growing_zone, last_frost, first_frost } = await saveAllSettings();
     if (!station || !lat || !lon) {
       showStatus('weather-status', 'Station, lat and lon are required.', true);
       return;
@@ -397,33 +418,24 @@
       showStatus('weather-status', 'Lat and lon must be numbers.', true);
       return;
     }
+    const body = { weather_station: station, weather_lat: lat, weather_lon: lon,
+                   garden_year, spring_season, fall_season, growing_zone, last_frost, first_frost };
+    const resp = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (resp.ok) { updatePreviews(body); showStatus('weather-status', 'Saved ✓', false); }
+    else { showStatus('weather-status', 'Save failed.', true); }
+  }
 
-    const body = {
-      weather_station: station,
-      weather_lat:     lat,
-      weather_lon:     lon,
-      garden_year:     document.getElementById('garden-year').value.trim(),
-      spring_season:   document.getElementById('spring-season').value.trim(),
-      fall_season:     document.getElementById('fall-season').value.trim(),
-      growing_zone:    document.getElementById('growing-zone').value,
-      last_frost:      document.getElementById('last-frost').value || null,
-      first_frost:     document.getElementById('first-frost').value || null,
-    };
-
-    const resp = await fetch('/api/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-
-    if (resp.ok) {
-      updatePreviews(body);
-      showStatus('weather-status', 'Saved ✓', false);
-      showStatus('garden-status', 'Saved ✓', false);
-    } else {
-      showStatus('weather-status', 'Save failed.', true);
-      showStatus('garden-status', 'Save failed.', true);
+  async function saveGardenSettings() {
+    const { station, lat, lon, garden_year, spring_season, fall_season, growing_zone, last_frost, first_frost } = await saveAllSettings();
+    if (!station || !lat || !lon) {
+      showStatus('garden-status', 'Save weather settings first — station, lat and lon are required.', true);
+      return;
     }
+    const body = { weather_station: station, weather_lat: lat, weather_lon: lon,
+                   garden_year, spring_season, fall_season, growing_zone, last_frost, first_frost };
+    const resp = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (resp.ok) { updatePreviews(body); showStatus('garden-status', 'Saved ✓', false); }
+    else { showStatus('garden-status', 'Save failed.', true); }
   }
 
   function showStatus(id, msg, isErr) {
@@ -431,6 +443,44 @@
     el.textContent = msg;
     el.className = 'status ' + (isErr ? 'err' : 'ok');
     setTimeout(() => { el.textContent = ''; el.className = 'status'; }, 3000);
+  }
+
+  async function loadRoi() {
+    const el = document.getElementById('roi-content');
+    el.textContent = 'Loading…';
+    const [harvests, expenseList] = await Promise.all([
+      fetch('/api/harvests').then(r => r.json()),
+      fetch('/api/expenses').then(r => r.json()),
+    ]);
+    const harvested = harvests.reduce((s, h) => s + (h.value_usd || 0), 0);
+    const invested  = expenseList.reduce((s, e) => s + e.amount, 0);
+    const net       = harvested - invested;
+
+    const byCategory = {};
+    expenseList.forEach(e => { byCategory[e.category] = (byCategory[e.category] || 0) + e.amount; });
+    const catRows = Object.entries(byCategory).sort((a,b) => b[1]-a[1])
+      .map(([cat, amt]) => `<tr><td style="color:var(--text2)">${cat}</td><td style="text-align:right">$${amt.toFixed(2)}</td></tr>`).join('');
+
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px;">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;">
+          <div style="font-size:1.8rem;font-weight:300;color:var(--green);">$${harvested.toFixed(2)}</div>
+          <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:4px;">Total harvested</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;">
+          <div style="font-size:1.8rem;font-weight:300;color:var(--text);">$${invested.toFixed(2)}</div>
+          <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:4px;">Total invested</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 20px;">
+          <div style="font-size:1.8rem;font-weight:300;color:${net >= 0 ? 'var(--green)' : 'var(--red)'};">${net >= 0 ? '+' : '-'}$${Math.abs(net).toFixed(2)}</div>
+          <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-top:4px;">Net savings</div>
+        </div>
+      </div>
+      ${catRows ? `
+      <div style="font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:10px;">Expenses by category</div>
+      <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+        <tbody>${catRows}</tbody>
+      </table>` : '<div style="color:var(--muted);font-size:0.85rem;">No expenses logged yet — add them in Manage Garden → Expenses.</div>'}`;
   }
 
   loadSettings();

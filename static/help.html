@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Root Cause Analysis — Help</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="/static/theme.js?v=4"></script>
+  <style>
+    main {
+      overflow-y: auto;
+      padding: 28px 40px;
+      max-width: 860px;
+      margin: 0 auto;
+      scrollbar-width: none;
+    }
+    main::-webkit-scrollbar { display: none; }
+
+    .page-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      font-weight: 500;
+      color: var(--green);
+      margin-bottom: 6px;
+    }
+    .page-sub {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 36px;
+    }
+
+    .section {
+      margin-bottom: 36px;
+    }
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.3rem;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+    }
+    .card-icon { font-size: 1.6rem; margin-bottom: 8px; }
+    .card-name { font-weight: 500; font-size: 1rem; margin-bottom: 4px; }
+    .card-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+
+    p {
+      font-size: 0.95rem;
+      color: var(--text2);
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+    ul {
+      padding-left: 20px;
+      margin-bottom: 12px;
+    }
+    li {
+      font-size: 0.95rem;
+      color: var(--text2);
+      line-height: 1.7;
+    }
+    strong { color: var(--text); }
+
+    .tip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green-dim);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 14px;
+      font-size: 0.9rem;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+    .tip strong { color: var(--green); }
+  </style>
+</head>
+<body>
+
+<header id="site-header"></header>
+
+<main>
+  <div class="page-title">How to use Root Cause Analysis</div>
+  <div class="page-sub">A guide to getting the most out of your garden dashboard.</div>
+
+  <!-- Pages overview -->
+  <div class="section">
+    <div class="section-title">Pages at a glance</div>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">🏠</div>
+        <div class="card-name">Dashboard</div>
+        <div class="card-desc">Your garden at a glance — plant count, open tasks, seed inventory, and current weather with a 7-day rainfall chart.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">✅</div>
+        <div class="card-name">Tasks</div>
+        <div class="card-desc">All open and completed garden tasks. Auto-generated tasks appear here from weather and your planting schedule.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🌱</div>
+        <div class="card-name">Seeds</div>
+        <div class="card-desc">Track your seed inventory — quantity, lot year, source, and viability. Low-viability seeds are flagged automatically.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🪴</div>
+        <div class="card-name">Plants</div>
+        <div class="card-desc">Log what's growing and where — assign plants to beds or containers and track planting dates.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚙</div>
+        <div class="card-name">Manage Garden</div>
+        <div class="card-desc">Set up your garden structure: zones, beds, containers, crops, watering schedules, and the journal.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔧</div>
+        <div class="card-name">Settings</div>
+        <div class="card-desc">Configure your weather station, frost dates, and USDA growing zone. These power the auto-task system.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Getting started -->
+  <div class="section">
+    <div class="section-title">Getting started</div>
+    <p>Follow these steps the first time you set up the app:</p>
+    <ul>
+      <li><strong>1. Settings first</strong> — enter your weather station ID, latitude, longitude, and frost dates. Without frost dates, planting tasks won't generate.</li>
+      <li><strong>2. Set up your structure</strong> — go to Manage Garden and add your zones, beds, and containers so you have places to put plants.</li>
+      <li><strong>3. Add crops</strong> — crops are the varieties you grow. The app ships with common ones, but you can add custom varieties in Manage Garden → Crops.</li>
+      <li><strong>4. Add seeds to inventory</strong> — go to Seeds and log what you have on hand, including the lot year for viability tracking.</li>
+      <li><strong>5. Sync planting tasks</strong> — hit "Sync planting tasks" on the Tasks page or dashboard to generate your sowing and transplant schedule from your seed inventory and frost dates.</li>
+      <li><strong>6. Add plants</strong> — as you sow or transplant, log them on the Plants page and assign them to a bed or container.</li>
+    </ul>
+  </div>
+
+  <!-- Auto tasks -->
+  <div class="section">
+    <div class="section-title">Auto-generated tasks</div>
+    <p>The app generates two kinds of tasks automatically:</p>
+
+    <div class="tip"><strong>Water garden</strong> — created when your weather station reports dry conditions (no significant rainfall). Completing it marks it done for 24 hours before it can reappear.</div>
+    <div class="tip"><strong>Planting tasks</strong> — Sow Indoors, Sow Outdoors, and Transplant tasks generated from your seed inventory. Dates are calculated from your last spring frost and first fall frost dates in Settings.</div>
+
+    <p>Transplant crops (those with weeks-to-transplant set) get a <strong>Sow Indoors</strong> task and a <strong>Transplant</strong> task. Direct-sow crops get a <strong>Sow Outdoors</strong> task timed relative to last frost using their <code>direct_sow_weeks</code> offset.</p>
+    <p>For crops with succession sowing configured, multiple tasks are created spaced by the succession interval.</p>
+  </div>
+
+  <!-- Frost dates -->
+  <div class="section">
+    <div class="section-title">Frost dates and growing zone</div>
+    <p>Go to <strong>Settings → Garden Planning</strong> to set:</p>
+    <ul>
+      <li><strong>Last spring frost</strong> — the average date of the final frost in spring. Used to schedule indoor sowing and transplanting.</li>
+      <li><strong>First fall frost</strong> — used to schedule fall succession sowing, counting backward from harvest time.</li>
+      <li><strong>USDA growing zone</strong> — used for general plant hardiness reference. The app can detect this automatically from your coordinates.</li>
+    </ul>
+    <div class="tip"><strong>Tip:</strong> If planting tasks aren't appearing, check that your frost dates are saved. The Save button on the Garden Planning tab saves independently from the Weather tab.</div>
+  </div>
+
+  <!-- Seeds viability -->
+  <div class="section">
+    <div class="section-title">Seed viability</div>
+    <p>Each seed entry shows a viability badge based on lot year and the crop's expected viability window:</p>
+    <ul>
+      <li><strong style="color:var(--green)">Green (e.g. 1/3 yr)</strong> — well within viability window</li>
+      <li><strong style="color:var(--amber)">Amber (aging)</strong> — within 1 year of the viability limit; use soon or test germination</li>
+      <li><strong style="color:var(--red)">Red (expired)</strong> — past the expected viability window</li>
+      <li><strong>— (dash)</strong> — no lot year recorded</li>
+    </ul>
+    <p>Use the <strong>Low viability</strong> tab on the Seeds page to quickly see which packets need attention before the next sowing season.</p>
+  </div>
+
+  <!-- Crops -->
+  <div class="section">
+    <div class="section-title">Managing crops and varieties</div>
+    <p>Crops live in Manage Garden → Crops. Each entry can have:</p>
+    <ul>
+      <li><strong>Days to harvest</strong> — used for fall succession task scheduling</li>
+      <li><strong>Weeks to transplant</strong> — if set, this crop gets Sow Indoors + Transplant tasks (not Sow Outdoors)</li>
+      <li><strong>Direct sow weeks</strong> — signed offset from last spring frost (negative = before frost, positive = after). Overrides the built-in default. Useful for overwintering crops like Purple Sprouting broccoli or garlic.</li>
+      <li><strong>Succession weeks / count</strong> — generates multiple staggered sowing tasks</li>
+    </ul>
+    <div class="tip"><strong>Overwintering crops</strong> like garlic or Purple Sprouting broccoli need a large negative <code>direct_sow_weeks</code> value (e.g. -20 to -26) to schedule sowing in autumn rather than spring.</div>
+  </div>
+
+  <!-- Contact -->
+  <div class="section">
+    <div class="section-title">Need more help?</div>
+    <p>Can't find what you're looking for? Send us a message and we'll get back to you.</p>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px 28px;display:flex;align-items:center;justify-content:space-between;gap:20px;">
+      <div>
+        <div style="font-weight:500;font-size:1rem;margin-bottom:4px;">Email support</div>
+        <div style="font-size:0.85rem;color:var(--muted);">Coming soon — email support will be available shortly.</div>
+      </div>
+      <button disabled style="background:var(--green-dim);border:none;border-radius:10px;color:#fff;font-family:'DM Sans',sans-serif;font-size:0.95rem;font-weight:500;padding:12px 24px;cursor:not-allowed;opacity:0.5;white-space:nowrap;">✉ Send a message</button>
+    </div>
+  </div>
+
+</main>
+
+</body>
+</html>

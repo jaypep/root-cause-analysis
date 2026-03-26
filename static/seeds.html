@@ -109,7 +109,7 @@
     .btn-del:hover { color: var(--red); }
 
   </style>
-  <script src="/static/theme.js?v=3"></script>
+  <script src="/static/theme.js?v=4"></script>
 </head>
 <body>
 
@@ -165,7 +165,10 @@
         </div>
         <div class="field">
           <label>Source</label>
-          <input type="text" id="s-source" placeholder="e.g. Baker Creek, saved">
+          <select id="s-source-select" onchange="onSourceChange()">
+            <option value="">Select source…</option>
+          </select>
+          <input type="text" id="s-source-other" placeholder="Source name…" style="display:none;margin-top:6px;">
         </div>
         <div class="field">
           <label>Notes</label>
@@ -183,7 +186,7 @@
       <button class="tab active" id="tab-all" onclick="setInvTab('all')">All seeds</button>
       <button class="tab" id="tab-low" onclick="setInvTab('low')">Low viability</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 80px 100px 90px 120px 80px auto;padding:8px 16px;border-bottom:1px solid var(--border);font-size:0.62rem;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);background:var(--bg2);flex-shrink:0;">
+    <div style="display:grid;grid-template-columns:1fr 80px 100px 90px 120px 110px auto;padding:8px 16px;border-bottom:1px solid var(--border);font-size:0.62rem;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);background:var(--bg2);flex-shrink:0;">
       <div>Crop / variety</div>
       <div>Qty</div>
       <div>Lot year</div>
@@ -208,7 +211,7 @@
   }
 
   function viabilityBadge(seed) {
-    if (seed.viable === null) return '<span class="viability-badge viable-unk">unknown age</span>';
+    if (seed.viable === null) return '<span class="viability-badge viable-unk">—</span>';
     var age = seed.age_years, max = seed.viability_years;
     if (age > max)    return '<span class="viability-badge viable-no">expired (' + age + 'yr)</span>';
     if (age >= max-1) return '<span class="viability-badge viable-warn">aging (' + age + '/' + max + 'yr)</span>';
@@ -226,11 +229,11 @@
       return;
     }
 
-    var GRID = 'display:grid;grid-template-columns:1fr 80px 100px 90px 120px 80px auto;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.82rem;';
+    var GRID = 'display:grid;grid-template-columns:1fr 80px 100px 90px 120px 110px auto;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.82rem;';
 
     el.innerHTML = seeds.map(function(s) {
       var name = s.crop_name || 'Unknown crop';
-      var variety = s.display_variety || '';
+      var variety = s.display_variety || 'Common';
       return '<div style="' + GRID + '" onmouseover="this.style.background=\'var(--dim)\'" onmouseout="this.style.background=\'\'">'+
         '<div><span style="font-weight:500;">' + name + '</span>' + (variety ? ' <span style="color:var(--muted);font-size:0.75rem;">— ' + variety + '</span>' : '') + '</div>' +
         '<div style="color:var(--text2);">' + s.quantity + ' ' + s.unit + '</div>' +
@@ -274,7 +277,7 @@
     var cropName = selected.name;
     var matches = cropList.filter(function(c) { return c.name === cropName && c.variety; });
     if (!matches.length) {
-      sel.innerHTML = '<option value="" data-crop-id="' + id + '">No specific variety</option>';
+      sel.innerHTML = '<option value="" data-crop-id="' + id + '">Common</option>';
       hiddenId.value = id;
     } else {
       sel.innerHTML = '<option value="" data-crop-id="">Select variety…</option>' +
@@ -319,7 +322,10 @@
     var unit = document.getElementById('s-unit').value;
     var seed_lot = parseInt(document.getElementById('s-yr-bought').value) || null;
 
-    var source = document.getElementById('s-source').value.trim() || null;
+    var sourceSelect = document.getElementById('s-source-select').value;
+    var source = sourceSelect === '__other'
+      ? (document.getElementById('s-source-other').value.trim() || null)
+      : (sourceSelect || null);
     var notes  = document.getElementById('s-notes').value.trim() || null;
 
     await fetch('/api/seeds', {
@@ -332,7 +338,9 @@
     document.getElementById('s-variety').value = '';
     document.getElementById('s-qty').value = '1';
     document.getElementById('s-yr-bought').value = '';
-    document.getElementById('s-source').value = '';
+    document.getElementById('s-source-select').value = '';
+    document.getElementById('s-source-other').style.display = 'none';
+    document.getElementById('s-source-other').value = '';
     document.getElementById('s-notes').value = '';
 
     await loadSeeds();
@@ -344,8 +352,24 @@
     await loadSeeds();
   }
 
+  async function loadSources() {
+    var sources = await fetch('/api/seed-sources').then(function(r) { return r.json(); });
+    var sel = document.getElementById('s-source-select');
+    sel.innerHTML = '<option value="">Select source…</option>' +
+      sources.map(function(s) {
+        return '<option value="' + s.name + '">' + s.name + '</option>';
+      }).join('') +
+      '<option value="__other">Other / freetext…</option>';
+  }
+
+  function onSourceChange() {
+    var v = document.getElementById('s-source-select').value;
+    document.getElementById('s-source-other').style.display = v === '__other' ? '' : 'none';
+  }
+
   loadCrops();
   loadSeeds();
+  loadSources();
 </script>
 </body>
 </html>

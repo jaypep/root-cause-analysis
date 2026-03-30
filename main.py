@@ -7,6 +7,8 @@ import sqlite3
 import os
 import urllib.request
 import json
+import threading
+import time
 from datetime import datetime
 
 app = FastAPI(title="Root Cause Analysis")
@@ -156,13 +158,11 @@ def init_db():
 def migrate_db():
     """Apply any schema changes to an existing DB without wiping data."""
     conn = get_db()
-    
-    # Helper to check if a column exists
+
     def has_column(table, column):
         rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
         return any(r["name"] == column for r in rows)
-    
-    # Helper to check if a table exists
+
     def has_table(table):
         row = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
@@ -171,7 +171,6 @@ def migrate_db():
 
     migrations = []
 
-    # crops table additions
     if has_table("crops"):
         if not has_column("crops", "weeks_to_transplant"):
             migrations.append("ALTER TABLE crops ADD COLUMN weeks_to_transplant INTEGER")
@@ -182,32 +181,23 @@ def migrate_db():
         if not has_column("crops", "direct_sow_weeks"):
             migrations.append("ALTER TABLE crops ADD COLUMN direct_sow_weeks INTEGER")
 
-    # seeds table additions
     if has_table("seeds"):
         if not has_column("seeds", "variety"):
             migrations.append("ALTER TABLE seeds ADD COLUMN variety TEXT")
         if not has_column("seeds", "seed_lot"):
             migrations.append("ALTER TABLE seeds ADD COLUMN seed_lot INTEGER")
-        # rename year_purchased to seed_lot if old column exists
         if has_column("seeds", "year_purchased") and not has_column("seeds", "seed_lot"):
             migrations.append("ALTER TABLE seeds RENAME COLUMN year_purchased TO seed_lot")
-        if has_column("seeds", "year_harvested"):
-            pass  # leave it, no harm in keeping old data
 
-    # containers table
     if has_table("containers"):
         if not has_column("containers", "location"):
             migrations.append("ALTER TABLE containers ADD COLUMN location TEXT")
         if not has_column("containers", "zone_id"):
             migrations.append("ALTER TABLE containers ADD COLUMN zone_id INTEGER REFERENCES zones(id) ON DELETE SET NULL")
 
-    # plants table
     if has_table("plants"):
         if not has_column("plants", "crop_id"):
             migrations.append("ALTER TABLE plants ADD COLUMN crop_id INTEGER REFERENCES crops(id) ON DELETE SET NULL")
-
-    # settings table — created fresh if missing, no migration needed
-    # tasks table — created fresh if missing, no migration needed
 
     for sql in migrations:
         try:
@@ -246,7 +236,6 @@ def seed_crops_from_file():
             )
             created += 1
         elif c.get("direct_sow_weeks") is not None:
-            # Backfill direct_sow_weeks from JSON if the row was created before this field existed
             conn.execute(
                 "UPDATE crops SET direct_sow_weeks=? WHERE id=? AND direct_sow_weeks IS NULL",
                 (c.get("direct_sow_weeks"), existing["id"])
@@ -256,10 +245,34 @@ def seed_crops_from_file():
     if created:
         print(f"seed_crops.json: added {created} new crops")
 
-
 init_db()
 migrate_db()
 seed_crops_from_file()
+
+# ---------------------------------------------------------------------------
+# seed_crops.json file watcher
+# ---------------------------------------------------------------------------
+
+def _watch_seed_crops():
+    """Background thread — reload seed_crops.json if it changes on disk."""
+    seed_file = os.path.join(os.path.dirname(__file__), "seed_crops.json")
+    last_mtime = None
+    while True:
+        try:
+            if os.path.exists(seed_file):
+                mtime = os.path.getmtime(seed_file)
+                if last_mtime is None:
+                    last_mtime = mtime
+                elif mtime != last_mtime:
+                    print(f"seed_crops.json changed — reloading crop catalog…")
+                    seed_crops_from_file()
+                    last_mtime = mtime
+        except Exception as e:
+            print(f"seed watcher error: {e}")
+        time.sleep(5)
+
+_watcher = threading.Thread(target=_watch_seed_crops, daemon=True)
+_watcher.start()
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -354,6 +367,11 @@ class ExpenseIn(BaseModel):
     expense_date: Optional[str] = None
     notes: Optional[str] = None
 
+class SeedSourceIn(BaseModel):
+    name: str
+    url: Optional[str] = None
+    notes: Optional[str] = None
+
 TASK_TYPES = {"water", "pests", "fertilize", "harvest", "sow_indoors", "sow_outdoors", "transplant"}
 
 class TaskIn(BaseModel):
@@ -424,7 +442,6 @@ def list_beds(zone_id: Optional[int] = None):
 
 @app.get("/api/beds/{bed_id}/grid")
 def get_bed_grid(bed_id: int):
-    """Returns bed dimensions and all plants keyed by row,col."""
     conn = get_db()
     bed = conn.execute("SELECT * FROM beds WHERE id=?", (bed_id,)).fetchone()
     if not bed:
@@ -864,6 +881,39 @@ def delete_expense(expense_id: int):
     conn.close()
 
 # ---------------------------------------------------------------------------
+# Seed sources
+# ---------------------------------------------------------------------------
+
+@app.get("/api/seed-sources")
+def list_seed_sources():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM seed_sources ORDER BY name").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.post("/api/seed-sources", status_code=201)
+def create_seed_source(s: SeedSourceIn):
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "INSERT INTO seed_sources (name, url, notes) VALUES (?,?,?) RETURNING *",
+            (s.name.strip(), s.url or None, s.notes or None)
+        ).fetchone()
+        conn.commit()
+        conn.close()
+        return dict(row)
+    except Exception:
+        conn.close()
+        raise HTTPException(status_code=409, detail="A source with that name already exists")
+
+@app.delete("/api/seed-sources/{source_id}", status_code=204)
+def delete_seed_source(source_id: int):
+    conn = get_db()
+    conn.execute("DELETE FROM seed_sources WHERE id=?", (source_id,))
+    conn.commit()
+    conn.close()
+
+# ---------------------------------------------------------------------------
 # Weather proxy (NWS, no API key required)
 # ---------------------------------------------------------------------------
 
@@ -888,14 +938,12 @@ def get_weather():
     lon     = get_setting(conn, "weather_lon",     WEATHER_LON_DEFAULT)
     conn.close()
     try:
-        # Current conditions from station
         obs_data = nws_get(f"https://api.weather.gov/stations/{station}/observations?limit=1")
         latest = obs_data["features"][0]["properties"] if obs_data.get("features") else {}
         temp_c = latest.get("temperature", {}).get("value")
         temp_f = round(temp_c * 9 / 5 + 32, 1) if temp_c is not None else None
         description = latest.get("textDescription", "")
 
-        # Wind — NWS returns km/h, convert to mph
         def kmh_to_mph(v):
             return round(v * 0.621371, 1) if v is not None else None
 
@@ -909,7 +957,6 @@ def get_weather():
                     "S","SSW","SW","WSW","W","WNW","NW","NNW"]
             return dirs[round(d / 22.5) % 16]
 
-        # Precipitation from Open-Meteo (no API key, no rounding bug)
         from datetime import timedelta
         precip_url = (
             f"https://api.open-meteo.com/v1/forecast"
@@ -922,14 +969,12 @@ def get_weather():
         precip_data = nws_get(precip_url)
         times   = precip_data["daily"]["time"]
         amounts = precip_data["daily"]["precipitation_sum"]
-        # today + past 7 = 8 entries; keep last 7
         pairs = list(zip(times, amounts))[-7:]
         rainfall = [
             {"date": d, "inches": round(a or 0, 2)}
             for d, a in pairs
         ]
 
-        # 7-day temp range from recent observations
         recent_obs = nws_get(f"https://api.weather.gov/stations/{station}/observations?limit=168")
         temps = []
         for f in recent_obs.get("features", []):
@@ -1001,8 +1046,6 @@ def mark_task_done(task_id: int, body: TaskDone):
         raise HTTPException(status_code=404, detail="Task not found")
     task = dict(row)
 
-    # When a sow_indoors task is marked done, create the transplant task.
-    # Transplant date = last spring frost (Spring crops only).
     if task["type"] == "sow_indoors" and task["title"].startswith("Sow indoors: "):
         label = task["title"][len("Sow indoors: "):]
         transplant_title = f"Transplant: {label}"
@@ -1025,7 +1068,6 @@ def mark_task_done(task_id: int, body: TaskDone):
                 except Exception:
                     pass
         elif not body.done:
-            # User un-checked sow_indoors — remove the pending transplant task
             conn.execute(
                 "DELETE FROM tasks WHERE type='transplant' AND title=? AND done=0",
                 (transplant_title,)
@@ -1044,16 +1086,8 @@ def delete_task(task_id: int):
 
 @app.post("/api/tasks/sync")
 def sync_weather_tasks():
-    """
-    Examines the last 7 days of rainfall and upserts a watering task if needed.
-    Rules:
-      - Total >= 1.0" in last 7 days → delete any open watering task, no new one needed
-      - Total < 1.0"                 → upsert a watering task due 3 days after last rain day
-                                       (or 3 days from today if no rain at all)
-    """
     from datetime import date, timedelta
 
-    # Fetch rainfall from Open-Meteo
     conn = get_db()
     lat = get_setting(conn, "weather_lat", WEATHER_LAT_DEFAULT)
     lon = get_setting(conn, "weather_lon", WEATHER_LON_DEFAULT)
@@ -1075,13 +1109,11 @@ def sync_weather_tasks():
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Weather fetch failed: {e}")
 
-    total_rain   = sum(a or 0 for _, a in pairs)
-    today_str    = date.today().isoformat()
+    total_rain = sum(a or 0 for _, a in pairs)
 
     conn = get_db()
 
     if total_rain >= 1.0:
-        # Enough rain — close any open auto watering task
         conn.execute(
             "UPDATE tasks SET done=1, done_at=?, notes='Closed automatically — sufficient rainfall' "
             "WHERE type='water' AND done=0 AND title='Water garden'",
@@ -1091,7 +1123,6 @@ def sync_weather_tasks():
         conn.close()
         return {"action": "closed", "total_rain_inches": round(total_rain, 2)}
 
-    # Find last day with any rain
     last_rain_date = None
     for day, amt in reversed(pairs):
         if (amt or 0) > 0:
@@ -1105,7 +1136,6 @@ def sync_weather_tasks():
 
     due = (base + timedelta(days=3)).isoformat()
 
-    # Upsert — update existing open task or create new one
     existing = conn.execute(
         "SELECT id FROM tasks WHERE type='water' AND title='Water garden' AND done=0"
     ).fetchone()
@@ -1117,7 +1147,6 @@ def sync_weather_tasks():
         )
         action = "updated"
     else:
-        # Don't recreate if user completed a watering task in the last 24 hours
         cutoff = (datetime.now() - timedelta(hours=24)).isoformat()
         recently_done = conn.execute(
             "SELECT id FROM tasks WHERE type='water' AND title='Water garden' AND done=1 AND done_at >= ?",
@@ -1143,7 +1172,6 @@ def sync_weather_tasks():
 
 SEED_UNITS = ["packet","seeds","corms","bulbs","cloves","crowns","sets","plants","tubers","oz","g","lb"]
 
-# Default viability in years by crop name keyword
 VIABILITY_DEFAULTS = {
     "onion":1,"leek":1,"chive":1,
     "pepper":2,"parsnip":2,"corn":2,"maize":2,
@@ -1152,7 +1180,6 @@ VIABILITY_DEFAULTS = {
     "cucumber":5,"melon":5,"squash":5,"pumpkin":5,"zucchini":5,"courgette":5,"lettuce":5,"celery":5,"celeriac":5,
 }
 
-# Default direct sow weeks relative to last spring frost (negative = before, positive = after)
 DIRECT_SOW_DEFAULTS = {
     "radish": -6, "pea": -6, "spinach": -6,
     "carrot": -4, "beet": -4, "beetroot": -4, "lettuce": -4, "kale": -4, "chard": -4,
@@ -1168,9 +1195,8 @@ def get_direct_sow_weeks(crop_name, override=None):
     for k, v in DIRECT_SOW_DEFAULTS.items():
         if k in name:
             return v
-    return 0  # default: sow at frost date
+    return 0
 
-# Default weeks to transplant by crop name keyword
 TRANSPLANT_WEEKS_DEFAULTS = {
     "pepper":10,"tomato":7,"eggplant":10,"aubergine":10,
     "broccoli":5,"cabbage":5,"cauliflower":5,"kale":5,"chard":4,"lettuce":4,
@@ -1184,58 +1210,16 @@ def get_viability(crop_name):
     for k, v in VIABILITY_DEFAULTS.items():
         if k in name:
             return v
-    return 3  # conservative default
+    return 3
 
 def get_transplant_weeks(crop_name, override=None):
     if override is not None:
-        return abs(int(override))  # always positive; negative entries are treated as positive
+        return abs(int(override))
     name = (crop_name or "").lower()
     for k, v in TRANSPLANT_WEEKS_DEFAULTS.items():
         if k in name:
             return v
-    return 0  # direct sow by default
-
-# ---------------------------------------------------------------------------
-# Seed sources
-# ---------------------------------------------------------------------------
-
-class SeedSourceIn(BaseModel):
-    name: str
-    url: Optional[str] = None
-    notes: Optional[str] = None
-
-@app.get("/api/seed-sources")
-def list_seed_sources():
-    conn = get_db()
-    rows = conn.execute("SELECT * FROM seed_sources ORDER BY name").fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-@app.post("/api/seed-sources", status_code=201)
-def create_seed_source(s: SeedSourceIn):
-    conn = get_db()
-    try:
-        row = conn.execute(
-            "INSERT INTO seed_sources (name, url, notes) VALUES (?,?,?) RETURNING *",
-            (s.name.strip(), s.url or None, s.notes or None)
-        ).fetchone()
-        conn.commit()
-        conn.close()
-        return dict(row)
-    except Exception:
-        conn.close()
-        raise HTTPException(status_code=409, detail="A source with that name already exists")
-
-@app.delete("/api/seed-sources/{source_id}", status_code=204)
-def delete_seed_source(source_id: int):
-    conn = get_db()
-    conn.execute("DELETE FROM seed_sources WHERE id=?", (source_id,))
-    conn.commit()
-    conn.close()
-
-# ---------------------------------------------------------------------------
-# Seeds
-# ---------------------------------------------------------------------------
+    return 0
 
 @app.get("/api/seeds")
 def list_seeds():
@@ -1299,11 +1283,6 @@ def delete_seed(seed_id: int):
 
 @app.get("/api/seeds/plan")
 def seed_plan():
-    """
-    Returns a planting calendar for all seeds in inventory,
-    calculated from frost dates stored in settings.
-    Both spring and fall plans are returned.
-    """
     from datetime import date, timedelta
 
     conn = get_db()
@@ -1326,9 +1305,7 @@ def seed_plan():
         if not frost_date_str:
             return None
         try:
-            frost = datetime.strptime(frost_date_str, "%Y-%m-%d").date()
-            # Use current year's frost date
-            frost = frost.replace(year=current_year)
+            frost = datetime.strptime(frost_date_str, "%Y-%m-%d").date().replace(year=current_year)
         except:
             return None
 
@@ -1348,18 +1325,15 @@ def seed_plan():
 
             if season == "spring":
                 if weeks:
-                    # Transplant crop: start indoors, transplant at frost
                     sow_indoors  = frost - timedelta(weeks=weeks)
                     transplant   = frost
                     sow_outdoors = None
                 else:
-                    # Direct sow: use explicit offset or keyword default
                     dsw          = get_direct_sow_weeks(crop_name, d.get("direct_sow_weeks"))
                     sow_outdoors = frost + timedelta(weeks=dsw)
                     sow_indoors  = None
                     transplant   = None
             else:
-                # Fall: work backwards from first fall frost by days-to-harvest
                 sow_outdoors = frost - timedelta(days=dth)
                 sow_indoors  = sow_outdoors - timedelta(weeks=weeks) if weeks else None
                 transplant   = frost if weeks else None
@@ -1397,12 +1371,6 @@ def seed_plan():
 
 @app.post("/api/tasks/seed-plan-sync")
 def seed_plan_sync():
-    """
-    For each unique crop/variety in seed inventory, calculate sow indoors,
-    sow outdoors, and transplant dates for both spring and fall seasons,
-    then upsert tasks. Skips seeds with no days_to_harvest on the crop.
-    Closes tasks whose dates have passed.
-    """
     from datetime import date, timedelta
 
     conn = get_db()
@@ -1413,7 +1381,6 @@ def seed_plan_sync():
         conn.close()
         return {"message": "No frost dates configured — go to Settings → Garden Planning"}
 
-    # Get unique crop/variety combos from inventory
     seeds = conn.execute("""
         SELECT DISTINCT
             COALESCE(s.variety, c.variety, 'Common') as variety,
@@ -1439,7 +1406,6 @@ def seed_plan_sync():
         nonlocal created, updated, closed
         due = datetime.strptime(due_date_str, "%Y-%m-%d").date()
 
-        # Close if date has passed
         if due < today:
             rows = conn.execute(
                 "SELECT id FROM tasks WHERE type=? AND title=? AND done=0",
@@ -1459,10 +1425,7 @@ def seed_plan_sync():
         ).fetchone()
 
         if existing:
-            conn.execute(
-                "UPDATE tasks SET due_date=? WHERE id=?",
-                (due_date_str, existing["id"])
-            )
+            conn.execute("UPDATE tasks SET due_date=? WHERE id=?", (due_date_str, existing["id"]))
             updated += 1
         else:
             conn.execute(
@@ -1479,7 +1442,6 @@ def seed_plan_sync():
         except:
             return
 
-        # Parse first fall frost for spring viability checks
         first_fall_date = None
         if first_fall:
             try:
@@ -1498,46 +1460,29 @@ def seed_plan_sync():
 
             if season_label == "Spring":
                 if weeks:
-                    # Transplant crop: start indoors, transplant at frost
                     base_sow_indoors  = frost - timedelta(weeks=weeks)
                     base_transplant   = frost
                     base_sow_outdoors = None
-                    # Skip if the crop can't complete before first fall frost
                     if first_fall_date and (base_transplant + timedelta(days=dth)) > first_fall_date:
                         continue
                 else:
-                    # Direct sow: use explicit offset or keyword default
                     dsw               = get_direct_sow_weeks(crop_name, s["direct_sow_weeks"])
                     base_sow_outdoors = frost + timedelta(weeks=dsw)
                     base_sow_indoors  = None
                     base_transplant   = None
-                    # Skip if the crop can't complete before first fall frost
                     if first_fall_date and (base_sow_outdoors + timedelta(days=dth)) > first_fall_date:
                         continue
             else:
-                # Fall: only frost-tolerant direct-sow crops are eligible.
-                # These are crops with no transplant step (weeks == 0) AND a
-                # negative direct_sow_weeks offset, meaning they tolerate cold
-                # and are sown before last spring frost (lettuce, radish, carrot,
-                # spinach, etc.).
-                # All transplant crops (any weeks > 0) and frost-tender direct-sow
-                # crops (dsw >= 0: beans, okra, squash, cucumber) are spring-only.
-                # Overwintering crops (garlic, PSB) will be handled separately
-                # once explicit flagging is added.
                 dsw_fall = get_direct_sow_weeks(crop_name, s["direct_sow_weeks"])
                 if not (weeks == 0 and dsw_fall < 0):
                     continue
                 base_sow_outdoors = frost - timedelta(days=dth)
                 base_sow_indoors  = base_sow_outdoors - timedelta(weeks=weeks) if weeks else None
-                base_transplant   = (base_sow_outdoors) if weeks else None
-
-                # Skip if the earliest start date is already in the past — too
-                # late to get this crop to maturity before first frost.
+                base_transplant   = base_sow_outdoors if weeks else None
                 earliest_start = base_sow_indoors if base_sow_indoors else base_sow_outdoors
                 if earliest_start and earliest_start < today:
                     continue
 
-            # Generate succession sow dates
             count = succ_count if succ_weeks else 1
             for i in range(count):
                 offset = timedelta(weeks=succ_weeks * i) if succ_weeks else timedelta(0)
@@ -1547,13 +1492,11 @@ def seed_plan_sync():
                 sow_indoors  = (base_sow_indoors + offset) if base_sow_indoors else None
                 transplant   = (base_transplant + offset) if base_transplant else None
 
-                # For succession, stop once harvest would land after first fall frost
                 if first_fall_date and dth:
                     harvest_anchor = transplant or sow_outdoors
                     if harvest_anchor and (harvest_anchor + timedelta(days=dth)) > first_fall_date:
                         break
 
-                # For fall succession, also stop if sow date is in the past
                 if season_label == "Fall":
                     sow_start = sow_indoors or sow_outdoors
                     if sow_start and sow_start < today:
@@ -1563,8 +1506,6 @@ def seed_plan_sync():
                     upsert_task("sow_indoors", f"Sow indoors: {label}", sow_indoors.isoformat())
                 if sow_outdoors:
                     upsert_task("sow_outdoors", f"Sow outdoors: {label}", sow_outdoors.isoformat())
-                # Transplant tasks are created when the user marks sow_indoors done,
-                # not during sync — see PATCH /api/tasks/{id}/done.
 
     calc_and_upsert(last_spring, "Spring")
     calc_and_upsert(first_fall,  "Fall")
@@ -1585,18 +1526,11 @@ def lookup_growing_zone():
     conn.close()
 
     try:
-        # Step 1: NWS points -> get forecast zone which includes ZIP-level info
         points = nws_get(f"https://api.weather.gov/points/{lat},{lon}")
         props = points.get("properties", {})
-
-        # NWS returns a relativeLocation with city/state but not ZIP
-        # Use the forecastZone URL to get county/state, then build ZIP lookup
-        # Better: use the county FIPS from relativeLocation to hit phzmapi by zip
-        # Simplest: reverse geocode with nominatim (OSM, free, no key)
         city  = props.get("relativeLocation", {}).get("properties", {}).get("city", "")
         state = props.get("relativeLocation", {}).get("properties", {}).get("state", "")
 
-        # Step 2: Nominatim reverse geocode to get ZIP
         nom_url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
         nom_req = urllib.request.Request(nom_url, headers={"User-Agent": "root-cause-analysis/1.0"})
         with urllib.request.urlopen(nom_req, timeout=8) as resp:
@@ -1606,7 +1540,6 @@ def lookup_growing_zone():
         if not zipcode:
             raise HTTPException(status_code=404, detail="Could not determine ZIP code from coordinates")
 
-        # Step 3: phzmapi.org lookup by ZIP
         zone_req = urllib.request.Request(
             f"https://phzmapi.org/{zipcode}.json",
             headers={"User-Agent": "root-cause-analysis/1.0"}
@@ -1614,12 +1547,9 @@ def lookup_growing_zone():
         with urllib.request.urlopen(zone_req, timeout=8) as resp:
             zone_data = json.loads(resp.read())
 
-        zone = zone_data.get("zone", "")
-        temp_range = zone_data.get("temperature_range", "")
-
         return {
-            "zone": zone,
-            "temperature_range": temp_range,
+            "zone": zone_data.get("zone", ""),
+            "temperature_range": zone_data.get("temperature_range", ""),
             "zipcode": zipcode,
             "city": city,
             "state": state,
@@ -1643,9 +1573,8 @@ def detect_frost_dates():
 
     from datetime import date, timedelta
 
-    # Pull 10 years of daily min temps from Open-Meteo historical API
-    end_year   = date.today().year - 1          # last full year
-    start_year = end_year - 9                   # 10 years back
+    end_year   = date.today().year - 1
+    start_year = end_year - 9
     start_date = f"{start_year}-01-01"
     end_date   = f"{end_year}-12-31"
 
@@ -1664,11 +1593,8 @@ def detect_frost_dates():
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Historical data fetch failed: {e}")
 
-    # Group freeze days by year
-    # Last spring frost = last day in Jan-Jun where min <= 32
-    # First fall frost  = first day in Jul-Dec where min <= 32
-    spring_frosts = {}  # year -> latest freeze date in spring
-    fall_frosts   = {}  # year -> earliest freeze date in fall
+    spring_frosts = {}
+    fall_frosts   = {}
 
     for day_str, temp in zip(times, temps):
         if temp is None:
@@ -1679,11 +1605,9 @@ def detect_frost_dates():
 
         if temp <= 32.0:
             if 1 <= month <= 6:
-                # Spring freeze — keep the latest one
                 if year not in spring_frosts or d > spring_frosts[year]:
                     spring_frosts[year] = d
             elif 7 <= month <= 12:
-                # Fall freeze — keep the earliest one
                 if year not in fall_frosts or d < fall_frosts[year]:
                     fall_frosts[year] = d
 
@@ -1692,21 +1616,16 @@ def detect_frost_dates():
             return None
         doys = [d.timetuple().tm_yday for d in date_dict.values()]
         avg_doy = round(sum(doys) / len(doys))
-        # Convert average DOY back to a month/day using a non-leap year
         ref = datetime(2001, 1, 1) + timedelta(days=avg_doy - 1)
         return ref.strftime("%m-%d")
 
     last_spring = avg_day_of_year(spring_frosts)
     first_fall  = avg_day_of_year(fall_frosts)
-
-    # Format as current-year dates for the date picker
     current_year = date.today().year
-    last_spring_date  = f"{current_year}-{last_spring}" if last_spring else None
-    first_fall_date   = f"{current_year}-{first_fall}"  if first_fall  else None
 
     return {
-        "last_spring_frost": last_spring_date,
-        "first_fall_frost":  first_fall_date,
+        "last_spring_frost": f"{current_year}-{last_spring}" if last_spring else None,
+        "first_fall_frost":  f"{current_year}-{first_fall}"  if first_fall  else None,
         "years_analyzed":    len(spring_frosts),
         "spring_samples":    len(spring_frosts),
         "fall_samples":      len(fall_frosts),

@@ -859,31 +859,29 @@ function cropsTable(data) {
 }
 
 function editCrop(c) {
-  _editingCropId = c.id;
-  document.getElementById('crop-form-title').textContent = 'Edit crop';
-  document.getElementById('cr-name').value    = c.name || '';
-  document.getElementById('cr-variety').value = c.variety || '';
-  document.getElementById('cr-dth').value     = c.days_to_harvest ?? '';
-  document.getElementById('cr-wtt').value     = c.weeks_to_transplant ?? '';
-  document.getElementById('cr-dsw').value     = c.direct_sow_weeks ?? '';
-  document.getElementById('cr-sw').value      = c.succession_weeks ?? '';
-  document.getElementById('cr-sc').value      = c.succession_count ?? '';
-  document.getElementById('cr-notes').value   = c.notes || '';
-  document.getElementById('crop-save-btn').textContent = 'Update crop';
-  document.getElementById('crop-cancel-btn').style.display = '';
-  document.getElementById('crop-form-panel').scrollIntoView({behavior:'smooth'});
+  document.getElementById('overlay-root').innerHTML = `
+    <div class="overlay" onclick="if(event.target===this){closeDialog(false)}">
+      <div class="dialog" style="max-width:560px;width:90%;">
+        <h3>Edit crop</h3>
+        <div class="form-grid" style="padding:16px 0 12px;grid-template-columns:1fr 1fr;">
+          <div class="form-group"><label>Crop name *</label><input id="ec-name" value="${(c.name||'').replace(/"/g,'&quot;')}"></div>
+          <div class="form-group"><label>Variety</label><input id="ec-variety" value="${(c.variety||'').replace(/"/g,'&quot;')}"></div>
+          <div class="form-group"><label>Days to harvest</label><input id="ec-dth" type="number" min="1" value="${c.days_to_harvest??''}"></div>
+          <div class="form-group"><label>Start indoors (weeks)</label><input id="ec-wtt" type="number" min="0" value="${c.weeks_to_transplant??''}"></div>
+          <div class="form-group"><label>Direct sow offset (weeks ±)</label><input id="ec-dsw" type="number" value="${c.direct_sow_weeks??''}"></div>
+          <div class="form-group"><label>Succession every (weeks)</label><input id="ec-sw" type="number" min="1" value="${c.succession_weeks??''}"></div>
+          <div class="form-group"><label>Succession count</label><input id="ec-sc" type="number" min="1" value="${c.succession_count??''}"></div>
+          <div class="form-group"><label>Notes</label><input id="ec-notes" value="${(c.notes||'').replace(/"/g,'&quot;')}"></div>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-primary" onclick="saveCropDialog(${c.id})">Save</button>
+          <button class="btn" onclick="closeDialog(false)">Cancel</button>
+        </div>
+      </div>
+    </div>`;
 }
 
-function cancelCropEdit() {
-  _editingCropId = null;
-  document.getElementById('crop-form-title').textContent = 'Add crop';
-  document.getElementById('cr-name').value = document.getElementById('cr-variety').value =
-  document.getElementById('cr-dth').value  = document.getElementById('cr-wtt').value =
-  document.getElementById('cr-dsw').value  = document.getElementById('cr-sw').value =
-  document.getElementById('cr-sc').value   = document.getElementById('cr-notes').value = '';
-  document.getElementById('crop-save-btn').textContent = 'Add crop';
-  document.getElementById('crop-cancel-btn').style.display = 'none';
-}
+function cancelCropEdit() {}
 
 async function saveCrop() {
   const name = document.getElementById('cr-name').value.trim();
@@ -908,6 +906,24 @@ async function saveCrop() {
   crops();
 }
 
+async function saveCropDialog(id) {
+  const name = document.getElementById('ec-name').value.trim();
+  if (!name) { toast('Crop name required', true); return; }
+  const dsw = document.getElementById('ec-dsw').value;
+  const body = {
+    name,
+    variety:             document.getElementById('ec-variety').value.trim() || null,
+    days_to_harvest:     parseInt(document.getElementById('ec-dth').value) || null,
+    weeks_to_transplant: parseInt(document.getElementById('ec-wtt').value) ?? null,
+    direct_sow_weeks:    dsw !== '' ? parseInt(dsw) : null,
+    succession_weeks:    parseInt(document.getElementById('ec-sw').value) || null,
+    succession_count:    parseInt(document.getElementById('ec-sc').value) || null,
+    notes:               document.getElementById('ec-notes').value.trim() || null,
+  };
+  await api(`/api/crops/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  closeDialog(false); toast('Crop updated'); crops();
+}
+
 async function deleteCrop(id, label) {
   if (!await confirm('Delete crop', `Delete "${label}"? Seeds linked to this crop will be unlinked.`)) return;
   await api(`/api/crops/${id}`, {method:'DELETE'});
@@ -922,9 +938,7 @@ async function harvest() {
   main.innerHTML = '<div class="loading">Loading…</div>';
   const [data, cropList] = await Promise.all([api('/api/harvests'), api('/api/crops')]);
 
-  const seen = {};
-  const uniqueCrops = cropList.filter(c => seen[c.name] ? false : (seen[c.name] = true));
-  const cropOpts = '<option value="">Select crop…</option>' + uniqueCrops.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  const cropOpts = '<option value="">Select crop…</option>' + cropList.map(c => `<option value="${c.id}">${c.name}${c.variety ? ' — ' + c.variety : ''}</option>`).join('');
 
   const totalValue = data.reduce((sum, h) => sum + (h.value_usd || 0), 0);
 
@@ -939,7 +953,7 @@ async function harvest() {
     <div class="panel">
       <div class="panel-head"><span class="panel-title">Log harvest</span></div>
       <div class="form-grid">
-        <div class="form-group"><label>Crop *</label><select id="h-crop">${cropOpts}</select></div>
+        <div class="form-group span2"><label>Crop *</label><select id="h-crop" onchange="onHarvestCropChange()">${cropOpts}</select></div>
         <div class="form-group"><label>Weight *</label><input type="number" id="h-weight" min="0.1" step="0.1" placeholder="e.g. 8"></div>
         <div class="form-group"><label>Unit</label><select id="h-unit">
           <option value="oz">oz</option>
@@ -960,30 +974,38 @@ async function harvest() {
 function harvestTable(data) {
   if (!data.length) return '<div class="empty">No harvests logged yet</div>';
   return `<table class="tbl">
-    <thead><tr><th>Crop</th><th>Weight</th><th>Price / lb</th><th>Value</th><th>Date</th><th>Notes</th><th></th></tr></thead>
+    <thead><tr><th>Crop</th><th>Variety</th><th>Weight</th><th>Price / lb</th><th>Value</th><th>Date</th><th>Notes</th><th></th></tr></thead>
     <tbody>${data.map(h => {
+      window.__harvests = window.__harvests||{}; window.__harvests[h.id] = h;
       const value = h.value_usd != null ? `$${h.value_usd.toFixed(2)}` : '—';
       return `<tr>
         <td>${h.crop_name}</td>
+        <td style="color:var(--text2)">${h.variety||'—'}</td>
         <td>${h.weight} ${h.unit}</td>
         <td style="color:var(--muted)">${h.price_per_lb != null ? '$' + h.price_per_lb.toFixed(2) : '—'}</td>
         <td style="color:var(--green);font-weight:500">${value}</td>
         <td style="color:var(--muted)">${fmtDate(h.harvest_date)}</td>
         <td style="color:var(--text2)">${h.notes || ''}</td>
-        <td><button class="btn btn-sm btn-danger" onclick="deleteHarvest(${h.id})">Delete</button></td>
+        <td style="display:flex;gap:6px;">
+          <button class="btn btn-sm" onclick="editHarvest(window.__harvests[${h.id}])">Edit</button>
+          <button class="btn btn-sm btn-danger" style="opacity:1;" onclick="deleteHarvest(${h.id})">Delete</button>
+        </td>
       </tr>`;
     }).join('')}</tbody></table>`;
 }
 
 async function createHarvest() {
   const sel = document.getElementById('h-crop');
-  const crop_name = sel.options[sel.selectedIndex]?.text || '';
-  if (!crop_name || crop_name === 'Select crop…') { toast('Crop required', true); return; }
+  const fullText = sel.options[sel.selectedIndex]?.text || '';
+  if (!fullText || fullText === 'Select crop…') { toast('Crop required', true); return; }
+  const parts = fullText.split(' — ');
+  const crop_name = parts[0].trim();
+  const variety = parts[1]?.trim() || null;
   const crop_id = parseInt(sel.value) || null;
   const weight = parseFloat(document.getElementById('h-weight').value);
   if (!weight) { toast('Weight required', true); return; }
   const body = {
-    crop_id, crop_name, weight,
+    crop_id, crop_name, variety, weight,
     unit:         document.getElementById('h-unit').value,
     price_per_lb: parseFloat(document.getElementById('h-price').value) || null,
     harvest_date: document.getElementById('h-date').value || null,
@@ -991,6 +1013,61 @@ async function createHarvest() {
   };
   await api('/api/harvests', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
   toast('Harvest logged'); harvest();
+}
+
+async function editHarvest(h) {
+  const plants = await api('/api/plants');
+  const matchingVarieties = [...new Set(
+    plants
+      .filter(p => p.name.toLowerCase() === h.crop_name.toLowerCase() && p.variety)
+      .map(p => p.variety)
+  )];
+  const varietyField = matchingVarieties.length
+    ? `<select id="eh-variety">
+        <option value="">— none —</option>
+        ${matchingVarieties.map(v => `<option value="${v}" ${v===h.variety?'selected':''}>${v}</option>`).join('')}
+       </select>`
+    : `<input id="eh-variety" value="${(h.variety||'').replace(/"/g,'&quot;')}" placeholder="Optional">`;
+
+  const units = ['oz','lb','g','kg'];
+  const unitOpts = units.map(u => `<option value="${u}" ${u===h.unit?'selected':''}>${u}</option>`).join('');
+  document.getElementById('overlay-root').innerHTML = `
+    <div class="overlay" onclick="if(event.target===this){closeDialog(false)}">
+      <div class="dialog" style="max-width:520px;width:90%;">
+        <h3>Edit harvest — ${h.crop_name}${h.variety ? ' — ' + h.variety : ''}</h3>
+        <div class="form-grid" style="padding:16px 0 12px;grid-template-columns:1fr 1fr;">
+          <div class="form-group"><label>Crop</label><input id="eh-crop-name" value="${(h.crop_name||'').replace(/"/g,'&quot;')}"></div>
+          <div class="form-group"><label>Variety</label>${varietyField}</div>
+          <div class="form-group"><label>Weight *</label><input id="eh-weight" type="number" step="0.01" min="0" value="${h.weight||''}"></div>
+          <div class="form-group"><label>Unit</label><select id="eh-unit">${unitOpts}</select></div>
+          <div class="form-group"><label>Price / lb ($)</label><input id="eh-price" type="number" step="0.01" min="0" value="${h.price_per_lb||''}"></div>
+          <div class="form-group"><label>Date</label><input id="eh-date" type="date" value="${h.harvest_date||''}"></div>
+          <div class="form-group span2"><label>Notes</label><input id="eh-notes" value="${(h.notes||'').replace(/"/g,'&quot;')}"></div>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-primary" onclick="saveHarvest(${h.id})">Save</button>
+          <button class="btn" onclick="closeDialog(false)">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveHarvest(id) {
+  const h = window.__harvests[id];
+  const weight = parseFloat(document.getElementById('eh-weight').value);
+  if (!weight) { toast('Weight required', true); return; }
+  const body = {
+    crop_id:      h.crop_id,
+    crop_name:    document.getElementById('eh-crop-name').value.trim() || h.crop_name,
+    variety:      document.getElementById('eh-variety').value.trim() || null,
+    weight,
+    unit:         document.getElementById('eh-unit').value,
+    price_per_lb: parseFloat(document.getElementById('eh-price').value) || null,
+    harvest_date: document.getElementById('eh-date').value || null,
+    notes:        document.getElementById('eh-notes').value.trim() || null,
+  };
+  await api(`/api/harvests/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  closeDialog(false); toast('Harvest updated'); harvest();
 }
 
 async function deleteHarvest(id) {

@@ -94,6 +94,17 @@
 
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; background: transparent;
+      border: 1px solid var(--border2); color: var(--green);
+      font-family: 'DM Sans', sans-serif; font-size: 1rem;
+      border-radius: 8px; cursor: pointer; text-decoration: none;
+      transition: all 0.15s;
+    }
+    .btn:hover { border-color: var(--green); background: var(--bg2); }
+    .btn-sm { padding: 6px 14px; font-size: 0.85rem; }
+
     .btn-save {
       background: var(--green-dim);
       border: none;
@@ -346,8 +357,8 @@
           <td style="color:var(--muted)">${fmtDate(p.planted)}</td>
           <td style="color:var(--text2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.notes || ''}</td>
           <td style="display:flex;gap:6px;">
-            <button class="btn-save" style="padding:6px 14px;font-size:0.85rem;" onclick="editPlant(window.__plants[${p.id}])">Edit</button>
-            <button class="btn-danger" style="opacity:1;" onclick="deletePlant(${p.id},'${p.name.replace(/'/g,"\\'")}')">Delete</button>
+            <button class="btn btn-sm" onclick="editPlant(window.__plants[${p.id}])">Edit</button>
+            <button class="btn btn-sm" style="color:var(--red);border-color:var(--red);" onclick="deletePlant(${p.id},'${p.name.replace(/'/g,"\\'")}')">Delete</button>
           </td>
         </tr>`;
       }).join('')}</tbody></table>`;
@@ -411,8 +422,8 @@
             <div class="field"><label>Notes</label><input id="ep-notes" value="${(p.notes||'').replace(/"/g,'&quot;')}"></div>
           </div>
           <div class="dialog-actions">
-            <button class="btn-save" onclick="savePlant(${p.id})">Save</button>
-            <button class="btn-cancel" onclick="closeDialog(false)">Cancel</button>
+            <button class="btn" style="background:var(--green-dim);border-color:var(--green-dim);color:#fff;" onclick="savePlant(${p.id})">Save</button>
+            <button class="btn" onclick="closeDialog(false)">Cancel</button>
           </div>
         </div>
       </div>`;

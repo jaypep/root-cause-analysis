@@ -205,6 +205,10 @@ def migrate_db():
         if not has_column("schedules", "notes"):
             migrations.append("ALTER TABLE schedules ADD COLUMN notes TEXT")
 
+    if has_table("harvests"):
+        if not has_column("harvests", "variety"):
+            migrations.append("ALTER TABLE harvests ADD COLUMN variety TEXT")
+
     if has_table("tasks"):
         if not has_column("tasks", "schedule_id"):
             migrations.append("ALTER TABLE tasks ADD COLUMN schedule_id INTEGER REFERENCES schedules(id) ON DELETE SET NULL")
@@ -366,6 +370,7 @@ class JournalIn(BaseModel):
 class HarvestIn(BaseModel):
     crop_id: Optional[int] = None
     crop_name: str
+    variety: Optional[str] = None
     weight: float
     unit: str = "oz"
     price_per_lb: Optional[float] = None
@@ -854,13 +859,28 @@ def list_harvests():
 def create_harvest(h: HarvestIn):
     conn = get_db()
     cur = conn.execute(
-        "INSERT INTO harvests (crop_id, crop_name, weight, unit, price_per_lb, harvest_date, notes) VALUES (?,?,?,?,?,?,?)",
-        (h.crop_id, h.crop_name, h.weight, h.unit, h.price_per_lb,
+        "INSERT INTO harvests (crop_id, crop_name, variety, weight, unit, price_per_lb, harvest_date, notes) VALUES (?,?,?,?,?,?,?,?)",
+        (h.crop_id, h.crop_name, h.variety, h.weight, h.unit, h.price_per_lb,
          h.harvest_date or datetime.now().strftime("%Y-%m-%d"), h.notes)
     )
     conn.commit()
     row = conn.execute("SELECT * FROM harvests WHERE id=?", (cur.lastrowid,)).fetchone()
     conn.close()
+    return dict(row)
+
+@app.put("/api/harvests/{harvest_id}")
+def update_harvest(harvest_id: int, h: HarvestIn):
+    conn = get_db()
+    conn.execute(
+        "UPDATE harvests SET crop_id=?, crop_name=?, variety=?, weight=?, unit=?, price_per_lb=?, harvest_date=?, notes=? WHERE id=?",
+        (h.crop_id, h.crop_name, h.variety, h.weight, h.unit, h.price_per_lb,
+         h.harvest_date or datetime.now().strftime("%Y-%m-%d"), h.notes, harvest_id)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM harvests WHERE id=?", (harvest_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Harvest not found")
     return dict(row)
 
 @app.delete("/api/harvests/{harvest_id}", status_code=204)

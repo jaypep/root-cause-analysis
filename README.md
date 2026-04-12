@@ -75,13 +75,13 @@ The app will be available at `http://localhost:8000`.
 
 Open **Settings** in the app to configure:
 
-| Setting | Description | Default |
-|---|---|---|
-| Weather Station | ICAO airport code for current conditions | `KROG` |
-| Latitude / Longitude | Used for zone lookup, frost dates, and precipitation | `36.3726, -94.1069` |
-| Frost Dates | Last spring frost / first fall frost — manual entry or auto-detected from 10-year historical data | — |
-| Growing Zone | USDA hardiness zone — manual entry or auto-detected via lat/lon | — |
-| Garden Year | Current growing season | — |
+| Setting | Description |
+|---|---|
+| Weather Station | ICAO airport code for current conditions |
+| Latitude / Longitude | Used for zone lookup, frost dates, and precipitation |
+| Frost Dates | Last spring frost / first fall frost — manual entry or auto-detected from 10-year historical data |
+| Growing Zone | USDA hardiness zone — manual entry or auto-detected via lat/lon |
+| Garden Year | Current growing season |
 
 ## Crop Catalog & Planting Calendar
 

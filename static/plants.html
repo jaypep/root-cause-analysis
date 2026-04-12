@@ -331,9 +331,11 @@
     const bedMap  = Object.fromEntries(beds.map(b => [b.id, b.name]));
     const contMap = Object.fromEntries(containers.map(c => [c.id, c.name]));
 
+    window.__plants = {};
     list.innerHTML = `<table class="tbl">
       <thead><tr><th>Name</th><th>Variety</th><th>Location</th><th>Planted</th><th>Notes</th><th></th></tr></thead>
       <tbody>${plants.map(p => {
+        window.__plants[p.id] = p;
         const loc = p.bed_id
           ? `${bedMap[p.bed_id] || 'Bed'} [${p.row},${p.col}]`
           : p.container_id ? contMap[p.container_id] || 'Container' : '—';
@@ -343,7 +345,10 @@
           <td style="color:var(--muted)">${loc}</td>
           <td style="color:var(--muted)">${fmtDate(p.planted)}</td>
           <td style="color:var(--text2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.notes || ''}</td>
-          <td><button class="btn-danger" onclick="deletePlant(${p.id},'${p.name.replace(/'/g,"\\'")}')">Delete</button></td>
+          <td style="display:flex;gap:6px;">
+            <button class="btn-save" style="padding:6px 14px;font-size:0.85rem;" onclick="editPlant(window.__plants[${p.id}])">Edit</button>
+            <button class="btn-danger" style="opacity:1;" onclick="deletePlant(${p.id},'${p.name.replace(/'/g,"\\'")}')">Delete</button>
+          </td>
         </tr>`;
       }).join('')}</tbody></table>`;
   }
@@ -384,6 +389,51 @@
     await api(`/api/plants/${id}`, {method:'DELETE'});
     toast('Plant deleted');
     loadPlants();
+  }
+
+  async function editPlant(p) {
+    const [beds, containers, zones] = await Promise.all([api('/api/beds'), api('/api/containers'), api('/api/zones')]);
+    const zoneOpts = '<option value="">All zones</option>' + zones.map(z=>`<option value="${z.id}">${z.name}</option>`).join('');
+    const bedOpts = '<option value="">None</option>' + beds.map(b=>`<option value="${b.id}" ${b.id==p.bed_id?'selected':''}>${b.name}</option>`).join('');
+    const contOpts = '<option value="">None</option>' + containers.map(c=>`<option value="${c.id}" ${c.id==p.container_id?'selected':''}>${c.name}</option>`).join('');
+    document.getElementById('overlay-root').innerHTML = `
+      <div class="overlay" onclick="if(event.target===this){closeDialog(false)}">
+        <div class="dialog" style="max-width:520px;width:90%;">
+          <h3>Edit plant</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px 0 12px;">
+            <div class="field"><label>Name</label><input id="ep-name" value="${(p.name||'').replace(/"/g,'&quot;')}"></div>
+            <div class="field"><label>Variety</label><input id="ep-variety" value="${(p.variety||'').replace(/"/g,'&quot;')}"></div>
+            <div class="field"><label>Bed</label><select id="ep-bed">${bedOpts}</select></div>
+            <div class="field"><label>Container</label><select id="ep-container">${contOpts}</select></div>
+            <div class="field"><label>Row</label><input id="ep-row" type="number" value="${p.row||''}"></div>
+            <div class="field"><label>Col</label><input id="ep-col" type="number" value="${p.col||''}"></div>
+            <div class="field"><label>Planted</label><input id="ep-planted" type="date" value="${p.planted||''}"></div>
+            <div class="field"><label>Notes</label><input id="ep-notes" value="${(p.notes||'').replace(/"/g,'&quot;')}"></div>
+          </div>
+          <div class="dialog-actions">
+            <button class="btn-save" onclick="savePlant(${p.id})">Save</button>
+            <button class="btn-cancel" onclick="closeDialog(false)">Cancel</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function savePlant(id) {
+    const name = document.getElementById('ep-name').value.trim();
+    if (!name) { toast('Name required', true); return; }
+    const bed_id = parseInt(document.getElementById('ep-bed').value)||null;
+    const body = {
+      name,
+      variety:      document.getElementById('ep-variety').value.trim()||null,
+      bed_id,
+      container_id: parseInt(document.getElementById('ep-container').value)||null,
+      row:          bed_id ? parseInt(document.getElementById('ep-row').value)||null : null,
+      col:          bed_id ? parseInt(document.getElementById('ep-col').value)||null : null,
+      planted:      document.getElementById('ep-planted').value||null,
+      notes:        document.getElementById('ep-notes').value.trim()||null,
+    };
+    await api(`/api/plants/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    closeDialog(false); toast('Plant updated'); loadPlants();
   }
 
   loadPlants();

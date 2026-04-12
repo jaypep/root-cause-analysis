@@ -267,7 +267,7 @@ function confirm(title, msg) {
           <h3>${title}</h3>
           <p>${msg}</p>
           <div class="dialog-actions">
-            <button class="btn btn-danger" onclick="closeDialog(true)">Delete</button>
+            <button class="btn" style="opacity:1;color:var(--red);border:1px solid var(--red);border-radius:8px;padding:10px 20px;font-size:0.95rem;" onclick="closeDialog(true)">Delete</button>
             <button class="btn" onclick="closeDialog(false)">Cancel</button>
           </div>
         </div>
@@ -296,12 +296,20 @@ function showSection(s) {
   document.querySelectorAll('.tab-bar .tab').forEach(el => el.classList.remove('active'));
   const tab = document.getElementById('tab-' + s);
   if (tab) tab.classList.add('active');
+  location.hash = s;
   ({ zones, beds, containers, schedules, journal, crops, harvest, expenses, sources }[s] || zones)();
 }
 
+const VALID_TABS = ['zones','beds','containers','crops','schedules','journal','harvest','expenses','sources'];
+const initTab = VALID_TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'zones';
+showSection(initTab);
+
 function fmtDate(s) {
   if (!s) return '—';
-  const d = s.includes('T') ? new Date(s) : new Date(s + 'T12:00:00');
+  // Normalize SQLite datetime (space separator) and date-only strings
+  const iso = s.includes('T') ? s : s.includes(' ') ? s.replace(' ', 'T') : s + 'T12:00:00';
+  const d = new Date(iso);
+  if (isNaN(d)) return s;
   return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
 }
 
@@ -334,11 +342,14 @@ function zonesTable(data) {
   if (!data.length) return '<div class="empty">No zones yet</div>';
   return `<table class="tbl">
     <thead><tr><th>Name</th><th>Notes</th><th></th></tr></thead>
-    <tbody>${data.map(z=>`<tr>
+    <tbody>${data.map(z=>{window.__zones=window.__zones||{};window.__zones[z.id]=z;return`<tr>
       <td>${z.name}</td>
       <td style="color:var(--text2)">${z.notes||''}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="deleteZone(${z.id},'${z.name}')">Delete</button></td>
-    </tr>`).join('')}</tbody></table>`;
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-sm" onclick="editZone(window.__zones[${z.id}])">Edit</button>
+        <button class="btn btn-sm btn-danger" style="opacity:1;" onclick="deleteZone(${z.id},'${z.name}')">Delete</button>
+      </td>
+    </tr>`;}).join('')}</tbody></table>`;
 }
 
 async function createZone() {
@@ -353,6 +364,30 @@ async function deleteZone(id, name) {
   if (!await confirm('Delete zone', `Delete "${name}"? Beds in this zone will be unlinked.`)) return;
   await api(`/api/zones/${id}`, {method:'DELETE'});
   toast('Zone deleted'); zones();
+}
+
+function editZone(z) {
+  document.getElementById('overlay-root').innerHTML = `
+    <div class="overlay" onclick="if(event.target===this){closeDialog(false)}">
+      <div class="dialog" style="max-width:400px;width:90%;">
+        <h3>Edit zone</h3>
+        <div class="form-grid" style="padding:16px 0 12px;grid-template-columns:1fr;">
+          <div class="form-group"><label>Name *</label><input id="ez-name" value="${z.name||''}"></div>
+          <div class="form-group"><label>Notes</label><input id="ez-notes" value="${z.notes||''}"></div>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-primary" onclick="saveZone(${z.id})">Save</button>
+          <button class="btn" onclick="closeDialog(false)">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveZone(id) {
+  const name = document.getElementById('ez-name').value.trim();
+  if (!name) { toast('Name required', true); return; }
+  await api(`/api/zones/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, notes:document.getElementById('ez-notes').value.trim()||null})});
+  closeDialog(false); toast('Zone updated'); zones();
 }
 
 // ════════════════════════
@@ -388,13 +423,16 @@ function bedsTable(data) {
   if (!data.length) return '<div class="empty">No beds yet</div>';
   return `<table class="tbl">
     <thead><tr><th>Name</th><th>Zone</th><th>Grid</th><th>Notes</th><th></th></tr></thead>
-    <tbody>${data.map(b=>`<tr>
+    <tbody>${data.map(b=>{window.__beds=window.__beds||{};window.__beds[b.id]=b;return`<tr>
       <td>${b.name}</td>
       <td>${b.zone_name||'—'}</td>
       <td style="color:var(--muted)">${b.rows}×${b.cols}</td>
       <td style="color:var(--text2)">${b.notes||''}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="deleteBed(${b.id},'${b.name}')">Delete</button></td>
-    </tr>`).join('')}</tbody></table>`;
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-sm" onclick="editBed(window.__beds[${b.id}])">Edit</button>
+        <button class="btn btn-sm btn-danger" style="opacity:1;" onclick="deleteBed(${b.id},'${b.name}')">Delete</button>
+      </td>
+    </tr>`;}).join('')}</tbody></table>`;
 }
 
 async function createBed() {
@@ -412,6 +450,38 @@ async function deleteBed(id, name) {
   if (!await confirm('Delete bed', `Delete "${name}"? Plants in this bed will be unlinked.`)) return;
   await api(`/api/beds/${id}`, {method:'DELETE'});
   toast('Bed deleted'); beds();
+}
+
+async function editBed(b) {
+  const zones = await api('/api/zones');
+  const zoneOpts = '<option value="">No zone</option>' + zones.map(z=>`<option value="${z.id}" ${z.id==b.zone_id?'selected':''}>${z.name}</option>`).join('');
+  document.getElementById('overlay-root').innerHTML = `
+    <div class="overlay" onclick="if(event.target===this){closeDialog(false)}">
+      <div class="dialog" style="max-width:480px;width:90%;">
+        <h3>Edit bed</h3>
+        <div class="form-grid" style="padding:16px 0 12px;grid-template-columns:1fr 1fr;">
+          <div class="form-group"><label>Name *</label><input id="eb-name" value="${b.name||''}"></div>
+          <div class="form-group"><label>Zone</label><select id="eb-zone">${zoneOpts}</select></div>
+          <div class="form-group"><label>Rows</label><input id="eb-rows" type="number" min="1" value="${b.rows||''}"></div>
+          <div class="form-group"><label>Cols</label><input id="eb-cols" type="number" min="1" value="${b.cols||''}"></div>
+          <div class="form-group span2"><label>Notes</label><input id="eb-notes" value="${b.notes||''}"></div>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-primary" onclick="saveBed(${b.id})">Save</button>
+          <button class="btn" onclick="closeDialog(false)">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveBed(id) {
+  const name = document.getElementById('eb-name').value.trim();
+  const rows = parseInt(document.getElementById('eb-rows').value);
+  const cols = parseInt(document.getElementById('eb-cols').value);
+  if (!name || !rows || !cols) { toast('Name, rows and cols required', true); return; }
+  const body = {name, zone_id:parseInt(document.getElementById('eb-zone').value)||null, rows, cols, notes:document.getElementById('eb-notes').value.trim()||null};
+  await api(`/api/beds/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  closeDialog(false); toast('Bed updated'); beds();
 }
 
 // ════════════════════════
@@ -450,15 +520,18 @@ function containersTable(data) {
   if (!data.length) return '<div class="empty">No containers yet</div>';
   return `<table class="tbl">
     <thead><tr><th>Zone</th><th>Name</th><th>Type</th><th>Size (gal)</th><th>Location</th><th>Notes</th><th></th></tr></thead>
-    <tbody>${data.map(c=>`<tr>
+    <tbody>${data.map((c,i)=>{window.__containers=window.__containers||{}; window.__containers[c.id]=c; return `<tr>
       <td style="color:var(--text2)">${c.zone_name||'—'}</td>
       <td>${c.name}</td>
       <td>${c.type||'—'}</td>
       <td>${c.size_gallons||'—'}</td>
       <td style="color:var(--text2)">${c.location||'—'}</td>
       <td style="color:var(--text2)">${c.notes||''}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="deleteContainer(${c.id},'${c.name}')">Delete</button></td>
-    </tr>`).join('')}</tbody></table>`;
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-sm" onclick="editContainer(window.__containers[${c.id}])">Edit</button>
+        <button class="btn btn-sm btn-danger" style="opacity:1;" onclick="deleteContainer(${c.id},'${c.name}')">Delete</button>
+      </td>
+    </tr>`; }).join('')}</tbody></table>`;
 }
 
 async function createContainer() {
@@ -479,6 +552,48 @@ async function deleteContainer(id, name) {
   toast('Container deleted'); containers();
 }
 
+async function editContainer(c) {
+  const zones = await api('/api/zones');
+  const zoneOpts = '<option value="">No zone</option>' + zones.map(z =>
+    `<option value="${z.id}" ${z.id == c.zone_id ? 'selected' : ''}>${z.name}</option>`
+  ).join('');
+  const root = document.getElementById('overlay-root');
+  root.innerHTML = `
+    <div class="overlay" onclick="if(event.target===this){closeDialog(false)}">
+      <div class="dialog" style="min-width:340px;">
+        <h3>Edit container</h3>
+        <div class="form-grid" style="margin-bottom:12px;">
+          <div class="form-group"><label>Zone</label><select id="ec-zone">${zoneOpts}</select></div>
+          <div class="form-group"><label>Name *</label><input id="ec-name" value="${c.name||''}"></div>
+          <div class="form-group"><label>Type</label><input id="ec-type" value="${c.type||''}"></div>
+          <div class="form-group"><label>Size (gal)</label><input id="ec-size" type="number" step="0.5" value="${c.size_gallons||''}"></div>
+          <div class="form-group"><label>Location</label><input id="ec-location" value="${c.location||''}"></div>
+          <div class="form-group"><label>Notes</label><input id="ec-notes" value="${c.notes||''}"></div>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-primary" onclick="saveContainer(${c.id})">Save</button>
+          <button class="btn" onclick="closeDialog(false)">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveContainer(id) {
+  const name = document.getElementById('ec-name').value.trim();
+  if (!name) { toast('Name required', true); return; }
+  const body = {
+    zone_id:       parseInt(document.getElementById('ec-zone').value) || null,
+    name,
+    type:          document.getElementById('ec-type').value.trim() || null,
+    size_gallons:  parseFloat(document.getElementById('ec-size').value) || null,
+    location:      document.getElementById('ec-location').value.trim() || null,
+    notes:         document.getElementById('ec-notes').value.trim() || null,
+  };
+  await api(`/api/containers/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  closeDialog(false);
+  toast('Container updated'); containers();
+}
+
 // ════════════════════════
 // SCHEDULES
 // ════════════════════════
@@ -489,14 +604,24 @@ async function schedules() {
   const plantOptions = `<option value="">Select plant</option>` + plantList.map(p=>`<option value="${p.id}">${p.name}${p.variety?' ('+p.variety+')':''}</option>`).join('');
   main.innerHTML = `
     <div class="page-header">
-      <div><div class="page-title">Schedules</div><div class="page-subtitle">Watering intervals per plant</div></div>
+      <div><div class="page-title">Schedules</div><div class="page-subtitle">Recurring tasks per plant</div></div>
     </div>
     <div class="panel">
       <div class="panel-head"><span class="panel-title">Add schedule</span></div>
       <div class="form-grid">
         <div class="form-group"><label>Plant *</label><select id="s-plant">${plantOptions}</select></div>
-        <div class="form-group"><label>Every (days) *</label><input id="s-interval" type="number" min="1" placeholder="e.g. 3" value="7"></div>
-        <div class="form-group"><label>Last watered</label><input id="s-last" type="date"></div>
+        <div class="form-group"><label>Task type *</label>
+          <select id="s-type">
+            <option value="water">Water</option>
+            <option value="fertilize">Fertilize</option>
+            <option value="prune">Prune</option>
+            <option value="spray">Spray</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Every (days) *</label><input id="s-interval" type="number" min="1" placeholder="e.g. 7" value="7"></div>
+        <div class="form-group"><label>Last done</label><input id="s-last" type="date"></div>
+        <div class="form-group span2"><label>Notes</label><input id="s-notes" placeholder="e.g. fish emulsion, deep soak"></div>
       </div>
       <div class="form-actions"><button class="btn btn-primary" onclick="createSchedule()">Add schedule</button></div>
     </div>
@@ -506,25 +631,34 @@ async function schedules() {
     </div>`;
 }
 
+const TASK_TYPE_LABELS = {water:'Water',fertilize:'Fertilize',prune:'Prune',spray:'Spray',other:'Other'};
+
 function schedulesTable(data) {
   if (!data.length) return '<div class="empty">No schedules yet</div>';
   return `<table class="tbl">
-    <thead><tr><th>Plant</th><th>Interval</th><th>Last watered</th><th>Next due</th><th></th></tr></thead>
-    <tbody>${data.map(s=>`<tr>
+    <thead><tr><th>Plant</th><th>Type</th><th>Every</th><th>Last done</th><th>Next due</th><th>Notes</th><th></th></tr></thead>
+    <tbody>${data.map(s => { window.__schedules = window.__schedules||{}; window.__schedules[s.id]=s; return `<tr>
       <td>${s.plant_name}</td>
+      <td>${TASK_TYPE_LABELS[s.task_type]||s.task_type||'Water'}</td>
       <td>${s.interval_days}d</td>
       <td style="color:var(--muted)">${fmtDate(s.last_watered)}</td>
       <td style="color:var(--muted)">${fmtDate(s.next_due)}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="deleteSchedule(${s.id},'${s.plant_name}')">Delete</button></td>
-    </tr>`).join('')}</tbody></table>`;
+      <td style="color:var(--text2)">${s.notes||''}</td>
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-sm" onclick="editSchedule(window.__schedules[${s.id}])">Edit</button>
+        <button class="btn btn-sm btn-danger" style="opacity:1;" onclick="deleteSchedule(${s.id},'${s.plant_name}')">Delete</button>
+      </td>
+    </tr>`; }).join('')}</tbody></table>`;
 }
 
 async function createSchedule() {
   const plant_id = parseInt(document.getElementById('s-plant').value);
   const interval_days = parseInt(document.getElementById('s-interval').value);
+  const task_type = document.getElementById('s-type').value;
   const last_watered = document.getElementById('s-last').value || null;
+  const notes = document.getElementById('s-notes').value.trim() || null;
   if (!plant_id || !interval_days) { toast('Plant and interval required', true); return; }
-  await api('/api/schedules', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({plant_id, interval_days, last_watered})});
+  await api('/api/schedules', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({plant_id, interval_days, task_type, last_watered, notes})});
   toast('Schedule added'); schedules();
 }
 
@@ -532,6 +666,46 @@ async function deleteSchedule(id, name) {
   if (!await confirm('Delete schedule', `Remove schedule for "${name}"?`)) return;
   await api(`/api/schedules/${id}`, {method:'DELETE'});
   toast('Schedule deleted'); schedules();
+}
+
+function editSchedule(s) {
+  const id = s.id, plantName = s.plant_name, intervalDays = s.interval_days;
+  const taskType = s.task_type || 'water', notes = s.notes || '';
+  const typeOpts = ['water','fertilize','prune','spray','other'].map(t =>
+    `<option value="${t}" ${t===taskType?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`
+  ).join('');
+  const root = document.getElementById('overlay-root');
+  root.innerHTML = `
+    <div class="overlay" onclick="if(event.target===this){closeDialog(false)}">
+      <div class="dialog" style="max-width:480px;width:90%;">
+        <h3>Edit schedule — ${plantName}</h3>
+        <div class="form-grid" style="padding:16px 0 12px;grid-template-columns:1fr 1fr;">
+          <div class="form-group"><label>Task type</label><select id="es-type">${typeOpts}</select></div>
+          <div class="form-group"><label>Every (days)</label><input id="es-interval" type="number" min="1" value="${intervalDays}"></div>
+          <div class="form-group span2"><label>Notes</label><input id="es-notes" value="${notes}" placeholder="e.g. fish emulsion, deep soak"></div>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-primary" onclick="saveSchedule(${id})">Save</button>
+          <button class="btn" onclick="closeDialog(false)">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveSchedule(id) {
+  const interval_days = parseInt(document.getElementById('es-interval').value);
+  if (!interval_days) { toast('Interval required', true); return; }
+  const s = window.__schedules[id];
+  const body = {
+    plant_id:     s.plant_id,
+    interval_days,
+    task_type:    document.getElementById('es-type').value,
+    last_watered: s.last_watered,
+    notes:        document.getElementById('es-notes').value.trim() || null,
+  };
+  await api(`/api/schedules/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  closeDialog(false);
+  toast('Schedule updated'); schedules();
 }
 
 // ════════════════════════
@@ -558,7 +732,7 @@ async function journal() {
       <div class="panel-head"><span class="panel-title">${data.length} entries</span></div>
       <div>
         ${data.length === 0 ? '<div class="empty">No entries yet</div>' :
-          data.map(e=>`
+          data.map(e=>{window.__journal=window.__journal||{};window.__journal[e.id]=e;return`
           <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;">
             <div style="flex:1;">
               <div style="display:flex;gap:10px;align-items:center;margin-bottom:4px;">
@@ -568,8 +742,11 @@ async function journal() {
               ${e.title ? `<div style="font-weight:500;margin-bottom:4px;font-size:0.9rem;">${e.title}</div>` : ''}
               <div style="color:var(--text2);font-size:0.82rem;line-height:1.55;">${e.body}</div>
             </div>
-            <button class="btn btn-sm btn-danger" style="margin-left:16px;flex-shrink:0;" onclick="deleteEntry(${e.id})">Delete</button>
-          </div>`).join('')
+            <div style="display:flex;flex-direction:column;gap:6px;margin-left:16px;flex-shrink:0;">
+              <button class="btn btn-sm" onclick="editEntry(${e.id})">Edit</button>
+              <button class="btn btn-sm btn-danger" style="opacity:1;" onclick="deleteEntry(${e.id})">Delete</button>
+            </div>
+          </div>`; }).join('')
         }
       </div>
     </div>`;
@@ -582,6 +759,32 @@ async function createEntry() {
   if (!body) { toast('Body required', true); return; }
   await api('/api/journal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:title||null, body, tags:tags||null})});
   toast('Entry saved'); journal();
+}
+
+function editEntry(id) {
+  const e = window.__journal[id];
+  document.getElementById('overlay-root').innerHTML = `
+    <div class="overlay" onclick="if(event.target===this){closeDialog(false)}">
+      <div class="dialog" style="max-width:520px;width:90%;">
+        <h3>Edit entry</h3>
+        <div class="form-grid" style="padding:16px 0 12px;grid-template-columns:1fr;">
+          <div class="form-group"><label>Title</label><input id="ej-title" value="${(e.title||'').replace(/"/g,'&quot;')}"></div>
+          <div class="form-group"><label>Body *</label><textarea id="ej-body" rows="4">${e.body||''}</textarea></div>
+          <div class="form-group"><label>Tags</label><input id="ej-tags" value="${e.tags||''}"></div>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-primary" onclick="saveEntry(${id})">Save</button>
+          <button class="btn" onclick="closeDialog(false)">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveEntry(id) {
+  const body = document.getElementById('ej-body').value.trim();
+  if (!body) { toast('Body required', true); return; }
+  await api(`/api/journal/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title:document.getElementById('ej-title').value.trim()||null, body, tags:document.getElementById('ej-tags').value.trim()||null})});
+  closeDialog(false); toast('Entry updated'); journal();
 }
 
 async function deleteEntry(id) {
@@ -635,6 +838,7 @@ function cropsTable(data) {
   return `<table class="tbl">
     <thead><tr><th>Crop</th><th>Variety</th><th>DTH</th><th>Start indoors</th><th>Direct sow offset</th><th>Succession</th><th>Notes</th><th></th></tr></thead>
     <tbody>${data.map(c => {
+      window.__crops = window.__crops||{}; window.__crops[c.id] = c;
       const dsw = c.direct_sow_weeks != null ? (c.direct_sow_weeks >= 0 ? `+${c.direct_sow_weeks}` : `${c.direct_sow_weeks}`) + ' wk' : '—';
       const wtt = c.weeks_to_transplant ? `${c.weeks_to_transplant} wk` : '—';
       const succ = (c.succession_weeks && c.succession_count) ? `every ${c.succession_weeks}w × ${c.succession_count}` : '—';
@@ -647,8 +851,8 @@ function cropsTable(data) {
         <td style="color:var(--muted)">${succ}</td>
         <td style="color:var(--text2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.notes || ''}</td>
         <td class="tbl-actions">
-          <button class="btn btn-sm" onclick="editCrop(${JSON.stringify(c).replace(/"/g,'&quot;')})">Edit</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteCrop(${c.id},'${c.name}${c.variety ? ' — ' + c.variety : ''}')">Delete</button>
+          <button class="btn btn-sm" onclick="editCrop(window.__crops[${c.id}])">Edit</button>
+          <button class="btn btn-sm btn-danger" style="opacity:1;" onclick="deleteCrop(${c.id},'${c.name}${c.variety ? ' — ' + c.variety : ''}')">Delete</button>
         </td>
       </tr>`;
     }).join('')}</tbody></table>`;
@@ -944,8 +1148,7 @@ async function deleteSource(id, name) {
   toast('Source deleted'); sources();
 }
 
-// ── init ──
-zones();
+// ── init handled by showSection(initTab) above ──
 </script>
 </body>
 </html>

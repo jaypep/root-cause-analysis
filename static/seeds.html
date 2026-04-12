@@ -199,7 +199,13 @@
   </div>
 </main>
 
+<div id="overlay-root"></div>
+
 <script>
+  function closeDialog(v) {
+    document.getElementById('overlay-root').innerHTML = '';
+    window._dialogResolve?.(v);
+  }
   let allSeeds = [], invTab = 'all';
 
   // ── Inventory tabs ──
@@ -231,7 +237,9 @@
 
     var GRID = 'display:grid;grid-template-columns:1fr 80px 100px 90px 120px 110px auto;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.82rem;';
 
+    window.__seeds = {};
     el.innerHTML = seeds.map(function(s) {
+      window.__seeds[s.id] = s;
       var name = s.crop_name || 'Unknown crop';
       var variety = s.display_variety || 'Common';
       return '<div style="' + GRID + '" onmouseover="this.style.background=\'var(--dim)\'" onmouseout="this.style.background=\'\'">'+
@@ -241,7 +249,10 @@
         '<div style="color:var(--muted);">' + (s.viability_years ? s.viability_years + ' yr' : '—') + '</div>' +
         '<div style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (s.source || '—') + '</div>' +
         '<div>' + viabilityBadge(s) + '</div>' +
-        '<div><button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.9rem;padding:4px;" onmouseover="this.style.color=\'var(--red)\'" onmouseout="this.style.color=\'var(--muted)\';" onclick="deleteSeed(' + s.id + ')">✕</button></div>' +
+        '<div style="display:flex;gap:4px;align-items:center;">' +
+          '<button style="background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:0.75rem;padding:3px 8px;border-radius:6px;" onclick="editSeed(window.__seeds[' + s.id + '])">Edit</button>' +
+          '<button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.9rem;padding:4px;" onmouseover="this.style.color=\'var(--red)\'" onmouseout="this.style.color=\'var(--muted)\';" onclick="deleteSeed(' + s.id + ')">✕</button>' +
+        '</div>' +
       '</div>';
     }).join('');
   }
@@ -343,6 +354,54 @@
     document.getElementById('s-source-other').value = '';
     document.getElementById('s-notes').value = '';
 
+    await loadSeeds();
+  }
+
+  // ── Edit seed ──
+  async function editSeed(s) {
+    var sources = await fetch('/api/seed-sources').then(function(r) { return r.json(); });
+    var srcOpts = '<option value="">Select source…</option>' +
+      sources.map(function(src) { return '<option value="' + src.name + '" ' + (src.name === s.source ? 'selected' : '') + '>' + src.name + '</option>'; }).join('') +
+      '<option value="__other" ' + (s.source && !sources.find(function(x){return x.name===s.source;}) ? 'selected' : '') + '>Other / freetext…</option>';
+    var units = ['packet','seeds','corms','bulbs','cloves','crowns','sets','plants','tubers','oz','g','lb'];
+    var unitOpts = units.map(function(u) { return '<option value="' + u + '" ' + (u===s.unit?'selected':'') + '>' + u + '</option>'; }).join('');
+    document.getElementById('overlay-root').innerHTML =
+      '<div class="overlay" onclick="if(event.target===this){closeDialog(false)}" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:900;">' +
+        '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:28px 32px;max-width:480px;width:90%;">' +
+          '<h3 style="font-family:\'Playfair Display\',serif;color:var(--green);margin-bottom:16px;font-size:1.2rem;">Edit seed</h3>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">' +
+            '<div style="display:flex;flex-direction:column;gap:5px;"><label style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);">Quantity</label><input id="es-qty" type="number" step="0.1" min="0" value="' + s.quantity + '" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;padding:8px 10px;border-radius:8px;"></div>' +
+            '<div style="display:flex;flex-direction:column;gap:5px;"><label style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);">Unit</label><select id="es-unit" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;padding:8px 10px;border-radius:8px;">' + unitOpts + '</select></div>' +
+            '<div style="display:flex;flex-direction:column;gap:5px;"><label style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);">Seed lot year</label><input id="es-lot" type="number" min="2000" max="2099" value="' + (s.seed_lot||'') + '" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;padding:8px 10px;border-radius:8px;"></div>' +
+            '<div style="display:flex;flex-direction:column;gap:5px;"><label style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);">Source</label><select id="es-source" onchange="document.getElementById(\'es-source-other\').style.display=this.value===\'__other\'?\'\':\'none\'" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;padding:8px 10px;border-radius:8px;">' + srcOpts + '</select></div>' +
+            '<div id="es-source-other-wrap" style="grid-column:span 2;display:flex;flex-direction:column;gap:5px;' + (s.source && !sources.find(function(x){return x.name===s.source;}) ? '' : 'display:none') + '"><label style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);">Source name</label><input id="es-source-other" value="' + (s.source||'') + '" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;padding:8px 10px;border-radius:8px;"></div>' +
+            '<div style="grid-column:span 2;display:flex;flex-direction:column;gap:5px;"><label style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);">Notes</label><input id="es-notes" value="' + (s.notes||'') + '" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:DM Sans,sans-serif;font-size:0.88rem;padding:8px 10px;border-radius:8px;"></div>' +
+          '</div>' +
+          '<div style="display:flex;gap:10px;">' +
+            '<button onclick="saveSeed(' + s.id + ')" style="background:var(--green-dim);border:none;border-radius:10px;color:#fff;font-family:DM Sans,sans-serif;font-size:1rem;font-weight:500;padding:12px 24px;cursor:pointer;">Save</button>' +
+            '<button onclick="closeDialog(false)" style="background:transparent;border:1px solid var(--border2);color:var(--green);font-family:DM Sans,sans-serif;font-size:1rem;padding:12px 24px;border-radius:10px;cursor:pointer;">Cancel</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  async function saveSeed(id) {
+    var qty = parseFloat(document.getElementById('es-qty').value);
+    if (!qty) return;
+    var s = window.__seeds[id];
+    var srcSel = document.getElementById('es-source').value;
+    var source = srcSel === '__other' ? document.getElementById('es-source-other').value.trim() : srcSel;
+    var body = {
+      crop_id:  s.crop_id,
+      variety:  s.variety,
+      quantity: qty,
+      unit: document.getElementById('es-unit').value,
+      seed_lot: parseInt(document.getElementById('es-lot').value)||null,
+      source: source||null,
+      notes: document.getElementById('es-notes').value.trim()||null,
+    };
+    await fetch('/api/seeds/' + id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    closeDialog(false);
     await loadSeeds();
   }
 

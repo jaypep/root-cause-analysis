@@ -199,6 +199,16 @@ def migrate_db():
         if not has_column("plants", "crop_id"):
             migrations.append("ALTER TABLE plants ADD COLUMN crop_id INTEGER REFERENCES crops(id) ON DELETE SET NULL")
 
+    if has_table("schedules"):
+        if not has_column("schedules", "task_type"):
+            migrations.append("ALTER TABLE schedules ADD COLUMN task_type TEXT DEFAULT 'water'")
+        if not has_column("schedules", "notes"):
+            migrations.append("ALTER TABLE schedules ADD COLUMN notes TEXT")
+
+    if has_table("tasks"):
+        if not has_column("tasks", "schedule_id"):
+            migrations.append("ALTER TABLE tasks ADD COLUMN schedule_id INTEGER REFERENCES schedules(id) ON DELETE SET NULL")
+
     for sql in migrations:
         try:
             conn.execute(sql)
@@ -344,7 +354,9 @@ class WateringIn(BaseModel):
 class ScheduleIn(BaseModel):
     plant_id: int
     interval_days: int
+    task_type: Optional[str] = "water"
     last_watered: Optional[str] = None
+    notes: Optional[str] = None
 
 class JournalIn(BaseModel):
     title: Optional[str] = None
@@ -727,23 +739,32 @@ def create_schedule(s: ScheduleIn):
     last = s.last_watered or datetime.now().isoformat()
     try:
         cur = conn.execute(
-            "INSERT INTO schedules (plant_id, interval_days, last_watered, next_due) VALUES (?,?,?,datetime(?,'+' || ? || ' days'))",
-            (s.plant_id, s.interval_days, last, last, s.interval_days)
+            "INSERT INTO schedules (plant_id, interval_days, task_type, notes, last_watered, next_due) VALUES (?,?,?,?,?,datetime(?,'+' || ? || ' days'))",
+            (s.plant_id, s.interval_days, s.task_type or "water", s.notes, last, last, s.interval_days)
         )
         conn.commit()
     except sqlite3.IntegrityError:
         conn.close()
         raise HTTPException(status_code=409, detail="A schedule already exists for this plant")
-    row = conn.execute("SELECT * FROM schedules WHERE id=?", (cur.lastrowid,)).fetchone()
+    schedule_id = cur.lastrowid
+    schedule = dict(conn.execute("SELECT * FROM schedules WHERE id=?", (schedule_id,)).fetchone())
+    plant_name = conn.execute("SELECT name FROM plants WHERE id=?", (s.plant_id,)).fetchone()["name"]
+    title = f"{(s.task_type or 'water').capitalize()}: {plant_name}"
+    due = schedule["next_due"][:10] if schedule["next_due"] else datetime.now().strftime("%Y-%m-%d")
+    conn.execute(
+        "INSERT INTO tasks (type, title, due_date, notes, schedule_id) VALUES (?,?,?,?,?)",
+        (s.task_type or "water", title, due, s.notes, schedule_id)
+    )
+    conn.commit()
     conn.close()
-    return dict(row)
+    return schedule
 
 @app.put("/api/schedules/{schedule_id}")
 def update_schedule(schedule_id: int, s: ScheduleIn):
     conn = get_db()
     conn.execute(
-        "UPDATE schedules SET interval_days=?, last_watered=?, next_due=datetime(last_watered, '+' || ? || ' days') WHERE id=?",
-        (s.interval_days, s.last_watered, s.interval_days, schedule_id)
+        "UPDATE schedules SET interval_days=?, task_type=?, notes=?, last_watered=?, next_due=datetime(last_watered, '+' || ? || ' days') WHERE id=?",
+        (s.interval_days, s.task_type or "water", s.notes, s.last_watered, s.interval_days, schedule_id)
     )
     conn.commit()
     row = conn.execute("SELECT * FROM schedules WHERE id=?", (schedule_id,)).fetchone()
@@ -1074,6 +1095,20 @@ def mark_task_done(task_id: int, body: TaskDone):
             )
             conn.commit()
 
+    # Roll schedule forward when a schedule-linked task is marked done
+    if body.done and task.get("schedule_id"):
+        try:
+            now = datetime.now().strftime("%Y-%m-%d")
+            conn.execute("""
+                UPDATE schedules
+                SET last_watered = ?,
+                    next_due = datetime(?, '+' || interval_days || ' days')
+                WHERE id = ?
+            """, (now, now, task["schedule_id"]))
+            conn.commit()
+        except Exception:
+            pass
+
     conn.close()
     return task
 
@@ -1165,6 +1200,39 @@ def sync_weather_tasks():
     conn.commit()
     conn.close()
     return {"action": action, "due_date": due, "total_rain_inches": round(total_rain, 2), "last_rain": last_rain_date}
+
+@app.post("/api/tasks/schedule-sync")
+def sync_schedule_tasks():
+    """Create tasks for any schedule that doesn't already have an open task."""
+    from datetime import date
+    today = date.today().isoformat()
+    conn = get_db()
+
+    schedules = conn.execute("""
+        SELECT s.*, p.name as plant_name
+        FROM schedules s
+        JOIN plants p ON p.id = s.plant_id
+        WHERE s.next_due IS NOT NULL
+    """).fetchall()
+
+    created = 0
+    for s in schedules:
+        title = f"{s['task_type'].capitalize()}: {s['plant_name']}"
+        existing = conn.execute(
+            "SELECT id FROM tasks WHERE schedule_id=? AND done=0",
+            (s["id"],)
+        ).fetchone()
+        if not existing:
+            due = s["next_due"][:10] if s["next_due"] else today
+            conn.execute(
+                "INSERT INTO tasks (type, title, due_date, notes, schedule_id) VALUES (?,?,?,?,?)",
+                (s["task_type"], title, due, s["notes"], s["id"])
+            )
+            created += 1
+
+    conn.commit()
+    conn.close()
+    return {"created": created}
 
 # ---------------------------------------------------------------------------
 # Seeds

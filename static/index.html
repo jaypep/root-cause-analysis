@@ -154,7 +154,7 @@
 <main>
   <!-- Stats row -->
   <div class="stats-row">
-    <a href="/manage" class="stat-card">
+    <a href="/plants" class="stat-card">
       <div class="stat-value" id="stat-plants">—</div>
       <div class="stat-label">Plants</div>
     </a>
@@ -281,6 +281,7 @@
   async function syncAndLoadTasks() {
     fetch('/api/tasks/sync', { method: 'POST' }).catch(() => {});
     fetch('/api/tasks/seed-plan-sync', { method: 'POST' }).catch(() => {});
+    fetch('/api/tasks/schedule-sync', { method: 'POST' }).catch(() => {});
     const tasks = await fetch('/api/tasks').then(r => r.json());
     renderTaskList(tasks);
   }

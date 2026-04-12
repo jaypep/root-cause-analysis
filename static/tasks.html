@@ -375,8 +375,9 @@
     loadTasks();
   }
 
-  // Sync weather + planting tasks on load
+  // Sync weather + planting + schedule tasks on load
   fetch('/api/tasks/sync', { method: 'POST' }).catch(() => {});
+  fetch('/api/tasks/schedule-sync', { method: 'POST' }).catch(() => {});
   syncPlantingTasks();
 </script>
 </body>

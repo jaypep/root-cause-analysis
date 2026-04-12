@@ -32,6 +32,7 @@
   {"name":"Okra","variety":"Red Burgundy","days_to_harvest":55,"weeks_to_transplant":3,"direct_sow_weeks":2,"succession_weeks":null,"succession_count":null},
   {"name":"Onion","variety":"Walla Walla","days_to_harvest":105,"weeks_to_transplant":8,"direct_sow_weeks":null,"succession_weeks":null,"succession_count":null},
   {"name":"Pea","variety":"Dwarf Grey Sugar","days_to_harvest":65,"weeks_to_transplant":0,"direct_sow_weeks":-6,"succession_weeks":2,"succession_count":3},
+  {"name":"Pea","variety":"Sugar Daddy Snap","days_to_harvest":60,"weeks_to_transplant":0,"direct_sow_weeks":-6,"succession_weeks":2,"succession_count":3},
   {"name":"Pea","variety":"Wando","days_to_harvest":60,"weeks_to_transplant":0,"direct_sow_weeks":-6,"succession_weeks":2,"succession_count":3},
   {"name":"Pepper","variety":"Jimmy Nardello","days_to_harvest":90,"weeks_to_transplant":10,"direct_sow_weeks":null,"succession_weeks":null,"succession_count":null},
   {"name":"Pepper","variety":"Shishito","days_to_harvest":60,"weeks_to_transplant":10,"direct_sow_weeks":null,"succession_weeks":null,"succession_count":null},

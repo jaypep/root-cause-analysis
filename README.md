@@ -59,17 +59,21 @@ All free, no API keys required:
 docker compose up
 ```
 
-### Without Docker
+### Local setup (Windows / macOS / Linux)
 
-```bash
-python -m venv venv
-venv\Scripts\Activate.ps1   # Windows
-source venv/bin/activate     # macOS/Linux
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+Setup scripts handle Python version checking, venv creation, dependency installation, and starting the server — with a prompt before each step.
+
+**Windows (PowerShell):**
+```powershell
+.\setup.ps1
 ```
 
-The app will be available at `http://localhost:8000`.
+**Linux / macOS:**
+```bash
+bash setup.sh
+```
+
+Both scripts will ask whether to bind to `0.0.0.0` for local network access and print your machine's IP if you say yes.
 
 ### Accessing from other devices on your network
 
@@ -77,9 +81,9 @@ By default, `localhost` is only reachable from the machine running the app. To a
 
 **Docker** — already bound to `0.0.0.0` by default, no changes needed.
 
-**Without Docker** — use `--host 0.0.0.0` as shown above (this tells uvicorn to accept connections from any network interface, not just loopback).
+**Local setup scripts** — both `setup.ps1` and `setup.sh` prompt you to bind to `0.0.0.0` and print your IP automatically.
 
-Then find your machine's local IP address:
+To find your machine's local IP address manually:
 
 | OS | Command |
 |---|---|

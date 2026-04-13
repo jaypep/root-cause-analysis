@@ -117,7 +117,7 @@ The crop catalog lives in `seed_crops.json` in the project root.
 
 ### How it works
 
-On every startup, the app reads `seed_crops.json` and inserts any crops that don't already exist in the database (matched on name + variety). Existing records are never overwritten, so user edits are preserved. Adding new crops to the JSON and restarting is all that's needed — no DB wipe required.
+On every startup, the app reads `seed_crops.json` and inserts any crops that don't already exist in the database (matched on name + variety). Existing records are never overwritten, so user edits are preserved. Adding new crops to the JSON and refreshing is all that's needed.
 
 ### Crop fields
 

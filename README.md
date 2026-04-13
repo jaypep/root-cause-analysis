@@ -5,9 +5,9 @@ A self-hosted garden management dashboard designed for a 10" touchscreen display
 ## Features
 
 - **Dashboard** — At-a-glance stats (plants, open tasks, seeds, total harvested value). Live weather, 7-day rainfall chart, and upcoming tasks. Sync planting tasks with one tap.
-- **Garden Layout** — Organise zones, beds (square-foot grid), and containers. Place and track individual plants by bed position or container. Full edit support across all records.
+- **Garden Layout** — Organize zones, beds (square-foot grid), and containers. Place and track individual plants by bed position or container. Full edit support across all records.
 - **Seed Inventory** — Track seed stock with viability calculations by lot year and crop type. Viability badges (green / amber / red) give at-a-glance status. Filter to low-viability seeds. Source tracking via a managed seed sources list.
-- **Planting Calendar** — Auto-generates sow indoors, sow outdoors, and transplant tasks for both spring and fall seasons based on your frost dates and seed inventory. Succession sowing supported with configurable interval and count per crop. First frost used as a hard viability cutoff — tasks are not generated for crops that can't complete before frost.
+- **Planting Calendar** — Auto-generates sow indoors, sow outdoors, and transplant tasks for both spring and fall seasons based on your frost dates, purchased plants and seed inventory. Succession sowing supported with configurable interval and count per crop. First frost used as a hard viability cutoff — tasks are not generated for crops that can't complete before frost.
 - **Task Management** — Manual and auto-generated tasks (water, fertilize, harvest, sow indoors/outdoors, transplant, pest control) with due dates and completion history. Rainfall-triggered watering tasks sync automatically. Transplant tasks are only created after you manually mark sow indoors as done.
 - **Recurring Schedules** — Per-plant recurring tasks (water, fertilize, prune, spray, other) with configurable interval. Tasks generate automatically on page load and roll forward when marked done.
 - **Harvest Log** — Track harvests by crop, weight (oz/lb), and organic market price. Computed value displayed on the dashboard and in the Garden ROI tab.
@@ -17,7 +17,7 @@ A self-hosted garden management dashboard designed for a 10" touchscreen display
 - **Weather Integration** — Live current conditions, wind speed/gusts/direction via NWS. 7-day rainfall history via Open-Meteo. Displayed on the dashboard with a bar chart.
 - **Garden Journal** — Dated log entries with optional title and tags. Editable after creation.
 - **Help Page** — Built-in usage guide accessible from the header.
-- **Light/Dark Theme** — Persistent preference, OS default respected. Shared header, navigation, and base styles centralised in `theme.js`.
+- **Light/Dark Theme** — Persistent preference, OS default respected. 
 
 ## Pages
 
@@ -113,7 +113,7 @@ Open **Settings** in the app to configure:
 
 ## Crop Catalog & Planting Calendar
 
-The crop catalog lives in `seed_crops.json` in the project root. This file is committed to git and is your source of truth for default crop data. Crops can also be added and edited directly in Manage Garden → Crops.
+The crop catalog lives in `seed_crops.json` in the project root. 
 
 ### How it works
 

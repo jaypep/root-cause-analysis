@@ -167,7 +167,7 @@ Badges: 🟢 viable · 🟡 within 1 year of expiry · 🔴 expired · ⬜ no lo
 
 ## Database Schema
 
-SQLite, single file (`root-cause-analysis.db`), never committed to git. Schema migrations run automatically on startup — no manual `ALTER TABLE` needed.
+SQLite, single file (`root-cause-analysis.db`), never committed to git. Schema migrations run automatically.
 
 | Table | Purpose |
 |---|---|

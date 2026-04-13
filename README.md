@@ -66,10 +66,34 @@ python -m venv venv
 venv\Scripts\Activate.ps1   # Windows
 source venv/bin/activate     # macOS/Linux
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 The app will be available at `http://localhost:8000`.
+
+### Accessing from other devices on your network
+
+By default, `localhost` is only reachable from the machine running the app. To access it from a phone, tablet, or another computer on the same Wi-Fi or LAN:
+
+**Docker** — already bound to `0.0.0.0` by default, no changes needed.
+
+**Without Docker** — use `--host 0.0.0.0` as shown above (this tells uvicorn to accept connections from any network interface, not just loopback).
+
+Then find your machine's local IP address:
+
+| OS | Command |
+|---|---|
+| Windows | `ipconfig` → look for **IPv4 Address** under your active adapter |
+| macOS | `ipconfig getifaddr en0` (Wi-Fi) or `en1` (Ethernet) |
+| Linux | `ip addr show` or `hostname -I` |
+
+The IP will look like `192.168.1.x` or `10.0.0.x`. Other devices on the same network can then open:
+
+```
+http://192.168.1.x:8000
+```
+
+> **Note:** This only works within your local network. The app is not exposed to the internet unless you explicitly configure port forwarding or a reverse proxy.
 
 ## Configuration
 
